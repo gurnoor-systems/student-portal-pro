@@ -110,21 +110,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  // Initialize session on mount
+  // Initialize session on mount (Preserves active session reliably across mobile & desktop)
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("student_portal_active_user");
       if (storedUser) {
-        const parsed = JSON.parse(storedUser);
-        const accounts: RegisteredAccount[] = JSON.parse(localStorage.getItem("student_portal_registered_accounts") || "[]");
-        const accountExists = accounts.some(a => a.id === parsed.id && a.email.toLowerCase() === parsed.email.toLowerCase());
-        
-        if (accountExists) {
+        const parsed: UserProfile = JSON.parse(storedUser);
+        if (parsed && parsed.id && parsed.email) {
           setUser(parsed);
           ensureUserDataSeeded(parsed.id);
           loadUserData(parsed.id);
+
+          // Guarantee account is recorded in local registered accounts cache
+          const accounts: RegisteredAccount[] = JSON.parse(localStorage.getItem("student_portal_registered_accounts") || "[]");
+          const accExists = accounts.some(a => a.id === parsed.id || a.email.toLowerCase() === parsed.email.toLowerCase());
+          if (!accExists) {
+            accounts.push({
+              id: parsed.id,
+              email: parsed.email.toLowerCase(),
+              passwordHash: "", // local session token
+              fullName: parsed.fullName,
+              emailVerified: parsed.emailVerified,
+              googleVerified: parsed.googleVerified,
+              university: parsed.university,
+              degree: parsed.degree,
+              major: parsed.major,
+              semester: parsed.semester,
+              googleCalendarSynced: parsed.googleCalendarSynced,
+              densityPreference: parsed.densityPreference || "comfortable",
+              provider: parsed.provider,
+              createdAt: parsed.createdAt,
+              lastLoginAt: new Date().toISOString()
+            });
+            saveRegisteredAccounts(accounts);
+          }
         } else {
-          localStorage.removeItem("student_portal_active_user");
           setUser(null);
           setUserData(EMPTY_DATA);
         }

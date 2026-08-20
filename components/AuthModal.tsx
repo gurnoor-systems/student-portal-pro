@@ -492,10 +492,13 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </label>
                 <input
                   type="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck="false"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="student@uwaterloo.ca"
-                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
               </div>
@@ -506,10 +509,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </label>
                 <input
                   type="password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
               </div>
