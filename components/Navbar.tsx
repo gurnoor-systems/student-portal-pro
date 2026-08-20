@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
+import ProfileModal from "@/components/ProfileModal";
 import { 
   Sun, 
   Moon, 
@@ -18,7 +19,9 @@ import {
   Search, 
   Calendar,
   GraduationCap,
-  Timer
+  Timer,
+  BookOpen,
+  Lock
 } from "lucide-react";
 
 interface NavbarProps {
@@ -40,6 +43,7 @@ export default function Navbar({
   const { user, signOut } = useAuth();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   return (
     <>
@@ -150,8 +154,24 @@ export default function Navbar({
 
                       <div className="space-y-1 text-xs">
                         <button
+                          onClick={() => { setIsUserMenuOpen(false); setIsProfileOpen(true); }}
+                          className="w-full p-2 text-left hover:bg-[var(--surface-soft)] text-[var(--ink)] font-semibold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
+                        >
+                          <BookOpen className="w-3.5 h-3.5 text-[var(--primary)]" />
+                          <span>Manage Subjects & Semesters</span>
+                        </button>
+
+                        <button
+                          onClick={() => { setIsUserMenuOpen(false); setIsProfileOpen(true); }}
+                          className="w-full p-2 text-left hover:bg-[var(--surface-soft)] text-[var(--ink)] font-semibold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
+                        >
+                          <Lock className="w-3.5 h-3.5 text-[#d4af37]" />
+                          <span>Change Password & Security</span>
+                        </button>
+
+                        <button
                           onClick={() => { setIsUserMenuOpen(false); signOut(); }}
-                          className="w-full p-2 text-left hover:bg-red-500/10 text-red-500 font-bold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
+                          className="w-full p-2 text-left hover:bg-red-500/10 text-red-500 font-bold flex items-center gap-2 cursor-pointer rounded-lg transition-colors pt-2 border-t border-[var(--hairline)]"
                         >
                           <LogOut className="w-3.5 h-3.5" />
                           <span>Sign Out of Portal</span>
@@ -373,11 +393,16 @@ export default function Navbar({
                   </button>
                 )}
               </div>
-
             </div>
           </div>
         </div>
       )}
+
+      {/* Profile & Academic Settings Modal */}
+      <ProfileModal 
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
     </>
   );
 }

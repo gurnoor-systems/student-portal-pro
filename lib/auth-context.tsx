@@ -53,6 +53,10 @@ interface AuthContextType {
   deleteCourse: (courseId: string) => void;
   addExam: (exam: Omit<ExamItem, "id" | "userId">) => ExamItem;
   deleteExam: (examId: string) => void;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (currentPass: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
+  sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  rolloverSemester: (nextSemester: string, clearPreviousSubjects: boolean) => Promise<{ success: boolean; error?: string }>;
   getTotalRegisteredUsersCount: () => number;
 }
 
@@ -568,6 +572,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, userData, persistUserData]);
 
+  const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "No active user session." };
+    await simulateNetworkLatency(400);
+
+    const updatedProfile: UserProfile = { ...user, ...updates };
+    setUser(updatedProfile);
+    localStorage.setItem("student_portal_active_user", JSON.stringify(updatedProfile));
+
+    // Also update registered accounts list
+    const accounts = getRegisteredAccounts();
+    const targetIdx = accounts.findIndex(a => a.id === user.id);
+    if (targetIdx >= 0) {
+      accounts[targetIdx] = {
+        ...accounts[targetIdx],
+        fullName: updates.fullName || accounts[targetIdx].fullName,
+        university: updates.university || accounts[targetIdx].university,
+        degree: updates.degree || accounts[targetIdx].degree,
+        major: updates.major || accounts[targetIdx].major,
+        semester: updates.semester || accounts[targetIdx].semester,
+      };
+      saveRegisteredAccounts(accounts);
+    }
+    return { success: true };
+  }, [user]);
+
+  const changePassword = useCallback(async (currentPass: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "No active user session." };
+    if (!newPass || newPass.length < 6) {
+      return { success: false, error: "New password must be at least 6 characters in length." };
+    }
+    await simulateNetworkLatency(500);
+
+    const accounts = getRegisteredAccounts();
+    const account = accounts.find(a => a.id === user.id);
+
+    if (!account) {
+      return { success: false, error: "Account not found." };
+    }
+
+    if (account.passwordHash !== currentPass) {
+      return { success: false, error: "Current password is incorrect." };
+    }
+
+    account.passwordHash = newPass;
+    saveRegisteredAccounts(accounts);
+    return { success: true };
+  }, [user]);
+
+  const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; error?: string }> => {
+    if (!emailToReset) return { success: false, error: "Please enter your student email." };
+    await simulateNetworkLatency(600);
+
+    const trimmed = emailToReset.trim().toLowerCase();
+    const supabase = createClient();
+    if (supabase) {
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
+        redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/`
+      });
+      if (error) {
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: true };
+  }, []);
+
+  const rolloverSemester = useCallback(async (nextSemester: string, clearPreviousSubjects: boolean): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "No active user session." };
+    await simulateNetworkLatency(500);
+
+    // 1. Update Profile Semester
+    await updateProfile({ semester: nextSemester });
+
+    // 2. Clear subjects if requested
+    if (clearPreviousSubjects) {
+      const nextData = {
+        ...userData,
+        courses: [],
+        tasks: userData.tasks.filter(t => t.status !== "completed") // preserve only in-progress tasks if any
+      };
+      persistUserData(user.id, nextData);
+    }
+    return { success: true };
+  }, [user, userData, updateProfile, persistUserData]);
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -588,6 +676,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       deleteCourse,
       addExam,
       deleteExam,
+      updateProfile,
+      changePassword,
+      sendPasswordResetEmail,
+      rolloverSemester,
       getTotalRegisteredUsersCount
     }}>
       {children}

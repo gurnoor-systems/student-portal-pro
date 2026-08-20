@@ -10,6 +10,7 @@ import AnalyticsHub from "@/components/AnalyticsHub";
 import FlashcardsHub from "@/components/FlashcardsHub";
 import CourseDocumentViewer from "@/components/CourseDocumentViewer";
 import FocusSanctuary from "@/components/FocusSanctuary";
+import ProfileModal from "@/components/ProfileModal";
 import { playSuccessChime } from "@/lib/audio";
 import { 
   Plus, 
@@ -59,6 +60,7 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
   const [dashboardTab, setDashboardTab] = useState<"summary" | "tracker" | "classrooms" | "calendar" | "exams" | "flashcards" | "documents" | "analytics">("summary");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFocusSanctuaryOpen, setIsFocusSanctuaryOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [density, setDensity] = useState<"comfortable" | "compact">(user?.densityPreference || "comfortable");
   const [greeting, setGreeting] = useState("Good Day");
   const [currentTimeFormatted, setCurrentTimeFormatted] = useState("");
@@ -259,8 +261,15 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
         {/* Sidebar Footer: Student Profile / Campus info */}
         <div className="p-3 border-t border-[var(--hairline)] space-y-2">
           {!isSidebarCollapsed ? (
-            <div className="px-3 py-2 bg-[var(--surface-card)] border border-[var(--hairline)] rounded text-xs space-y-1">
-              <div className="font-bold text-[var(--ink)] truncate">{user?.university || "University"}</div>
+            <div 
+              onClick={() => setIsProfileOpen(true)}
+              className="px-3 py-2 bg-[var(--surface-card)] hover:bg-[var(--surface-strong)] border border-[var(--hairline)] hover:border-[var(--primary)] rounded text-xs space-y-1 cursor-pointer transition-colors group"
+              title="Click to manage subjects, semester rollover, or change password"
+            >
+              <div className="flex items-center justify-between">
+                <div className="font-bold text-[var(--ink)] truncate">{user?.university || "University"}</div>
+                <span className="text-[9px] font-mono text-[var(--primary)] opacity-0 group-hover:opacity-100 transition-opacity font-bold">EDIT ›</span>
+              </div>
               <div className="text-[10px] text-[var(--muted)] font-mono flex items-center justify-between">
                 <span>{user?.semester || "Active Semester"}</span>
                 <span className="text-[var(--primary)] font-bold truncate max-w-[120px]" title={user?.degree || user?.major || "Student"}>
@@ -273,7 +282,11 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
               </div>
             </div>
           ) : (
-            <div className="flex justify-center py-1">
+            <div 
+              onClick={() => setIsProfileOpen(true)}
+              className="flex justify-center py-1 cursor-pointer"
+              title="Manage Profile & Subjects"
+            >
               <span className={`w-2 h-2 rounded-full ${user?.googleCalendarSynced ? "bg-emerald-500" : "bg-blue-500"}`} title={user?.googleCalendarSynced ? "Google Calendar Synced" : "Local"} />
             </div>
           )}
@@ -531,6 +544,12 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
         isOpen={isFocusSanctuaryOpen}
         onClose={() => setIsFocusSanctuaryOpen(false)}
         onTaskCompleted={handleToggleTask}
+      />
+
+      {/* Student Profile, Subjects & Password Management Modal */}
+      <ProfileModal 
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
       />
 
     </div>
