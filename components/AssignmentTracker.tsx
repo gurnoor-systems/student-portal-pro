@@ -32,6 +32,7 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
   const [selectedPriority, setSelectedPriority] = useState("all");
   const [sortField, setSortField] = useState<"dueDate" | "priority" | "title">("dueDate");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+  const [mobileKanbanTab, setMobileKanbanTab] = useState<"all" | "todo" | "in_progress" | "completed">("all");
 
   const updateTaskStatus = useCallback((taskId: string, newStatus: "todo" | "in_progress" | "completed") => {
     updateTask(taskId, { status: newStatus });
@@ -223,10 +224,58 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
 
       {/* 2. View Mode 1: Kanban Board */}
       {viewMode === "kanban" && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-4">
           
-          {/* Column 1: TO DO */}
-          <div className="bmw-card space-y-4 bg-[var(--surface-soft)]">
+          {/* Mobile Single Column Selector Pills */}
+          <div className="flex lg:hidden items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            <button
+              onClick={() => setMobileKanbanTab("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-colors ${
+                mobileKanbanTab === "all" 
+                  ? "bg-[var(--primary)] text-white shadow-sm" 
+                  : "bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--hairline)]"
+              }`}
+            >
+              All Columns ({sortedTasks.length})
+            </button>
+            <button
+              onClick={() => setMobileKanbanTab("todo")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-colors ${
+                mobileKanbanTab === "todo" 
+                  ? "bg-amber-500 text-slate-950 font-bold shadow-sm" 
+                  : "bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--hairline)]"
+              }`}
+            >
+              To Do ({todoTasks.length})
+            </button>
+            <button
+              onClick={() => setMobileKanbanTab("in_progress")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-colors ${
+                mobileKanbanTab === "in_progress" 
+                  ? "bg-[var(--primary)] text-white shadow-sm" 
+                  : "bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--hairline)]"
+              }`}
+            >
+              In Progress ({inProgressTasks.length})
+            </button>
+            <button
+              onClick={() => setMobileKanbanTab("completed")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold whitespace-nowrap transition-colors ${
+                mobileKanbanTab === "completed" 
+                  ? "bg-emerald-500 text-white shadow-sm" 
+                  : "bg-[var(--surface-soft)] text-[var(--muted)] border border-[var(--hairline)]"
+              }`}
+            >
+              Completed ({completedTasks.length})
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Column 1: TO DO */}
+            <div className={`bmw-card space-y-4 bg-[var(--surface-soft)] ${
+              mobileKanbanTab === "all" || mobileKanbanTab === "todo" ? "block" : "hidden lg:block"
+            }`}>
             <div className="flex items-center justify-between pb-3 border-b border-[var(--hairline)]">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 bg-amber-500" />
@@ -292,7 +341,9 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
           </div>
 
           {/* Column 2: IN PROGRESS */}
-          <div className="bmw-card space-y-4 bg-[var(--surface-soft)]">
+          <div className={`bmw-card space-y-4 bg-[var(--surface-soft)] ${
+            mobileKanbanTab === "all" || mobileKanbanTab === "in_progress" ? "block" : "hidden lg:block"
+          }`}>
             <div className="flex items-center justify-between pb-3 border-b border-[var(--hairline)]">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 bg-[var(--primary)]" />
@@ -361,7 +412,9 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
           </div>
 
           {/* Column 3: COMPLETED */}
-          <div className="bmw-card space-y-4 bg-[var(--surface-soft)]">
+          <div className={`bmw-card space-y-4 bg-[var(--surface-soft)] ${
+            mobileKanbanTab === "all" || mobileKanbanTab === "completed" ? "block" : "hidden lg:block"
+          }`}>
             <div className="flex items-center justify-between pb-3 border-b border-[var(--hairline)]">
               <div className="flex items-center gap-2">
                 <div className="w-2.5 h-2.5 bg-emerald-500" />
@@ -414,6 +467,7 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
           </div>
 
         </div>
+      </div>
       )}
 
       {/* 3. View Mode 2: Sortable Data Table */}

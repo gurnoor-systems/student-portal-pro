@@ -417,8 +417,11 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
             )}
 
             {/* Center Circular Progress Ring */}
-            <div className="relative my-auto py-6 flex items-center justify-center">
-              <svg width="320" height="320" className="transform -rotate-90">
+            <div className="relative my-auto py-4 sm:py-6 flex items-center justify-center">
+              <svg 
+                viewBox="0 0 320 320" 
+                className="w-[250px] h-[250px] sm:w-[320px] sm:h-[320px] transform -rotate-90"
+              >
                 {/* Background Ring Track */}
                 <circle
                   cx="160"

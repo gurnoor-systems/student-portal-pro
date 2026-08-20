@@ -233,22 +233,22 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-white/10 bg-[#090d12] px-6 text-xs font-bold uppercase tracking-wider">
+        <div className="flex border-b border-white/10 bg-[#090d12] px-4 sm:px-6 text-xs font-bold uppercase tracking-wider overflow-x-auto scrollbar-none">
           <button
             onClick={() => setActiveTab("subjects")}
-            className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
               activeTab === "subjects"
                 ? "border-[var(--primary)] text-[var(--primary)] font-bold"
                 : "border-transparent text-slate-400 hover:text-white"
             }`}
           >
             <BookOpen className="w-4 h-4" />
-            <span>Subjects & Semester ({userData.courses.length})</span>
+            <span>Subjects ({userData.courses.length})</span>
           </button>
 
           <button
             onClick={() => setActiveTab("security")}
-            className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
               activeTab === "security"
                 ? "border-[var(--primary)] text-[var(--primary)] font-bold"
                 : "border-transparent text-slate-400 hover:text-white"
@@ -260,7 +260,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
           <button
             onClick={() => setActiveTab("profile")}
-            className={`py-3 px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer ${
+            className={`py-3 px-3 sm:px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
               activeTab === "profile"
                 ? "border-[var(--primary)] text-[var(--primary)] font-bold"
                 : "border-transparent text-slate-400 hover:text-white"

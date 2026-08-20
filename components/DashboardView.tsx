@@ -295,56 +295,78 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
       </aside>
 
       {/* 2. MAIN WORKSPACE CONTENT */}
-      <main className={`flex-1 ${density === "compact" ? "p-4 lg:p-6 space-y-5" : "p-6 lg:p-10 space-y-8"} max-w-[1440px] mx-auto overflow-y-auto`}>
+      <main className={`flex-1 ${density === "compact" ? "p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-5" : "p-3.5 sm:p-6 lg:p-10 space-y-5 sm:space-y-8"} max-w-[1440px] mx-auto overflow-y-auto w-full`}>
         
+        {/* Mobile Swipeable Tab Switcher (Visible on < 1024px) */}
+        <div className="lg:hidden flex items-center gap-1.5 overflow-x-auto pb-2 -mx-3.5 px-3.5 sm:-mx-6 sm:px-6 scrollbar-none border-b border-[var(--hairline)]">
+          {navItems.map(item => {
+            const Icon = item.icon;
+            const isActive = dashboardTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setDashboardTab(item.id as any)}
+                className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all flex-shrink-0 cursor-pointer ${
+                  isActive 
+                    ? "bg-[var(--primary)] text-white shadow-md shadow-blue-500/20" 
+                    : "bg-[var(--surface-soft)] text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--hairline)]"
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
         {/* Workspace Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--hairline)]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-[var(--hairline)]">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className={`${density === "compact" ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"} font-bold tracking-tight text-[var(--ink)]`}>
+              <h1 className={`${density === "compact" ? "text-lg sm:text-2xl" : "text-xl sm:text-3xl"} font-bold tracking-tight text-[var(--ink)]`}>
                 {greeting}, {user?.fullName.split(" ")[0] || "Scholar"}
               </h1>
               {user?.googleCalendarSynced && (
-                <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 text-[10px] font-mono font-bold rounded flex items-center gap-1">
+                <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 text-[10px] font-mono font-bold rounded items-center gap-1">
                   <CalendarCheck className="w-3 h-3" />
-                  <span>GOOGLE SYNC ACTIVE</span>
+                  <span>SYNCED</span>
                 </span>
               )}
             </div>
-            <p className="text-xs text-[var(--muted)] font-mono">
-              {currentDateFormatted} • {currentTimeFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> {user?.degree ? `(${user.degree.split(" ")[0]} • ${user.semester || "Active Semester"})` : `(${user?.semester || "Active Semester"})`}
+            <p className="text-[11px] sm:text-xs text-[var(--muted)] font-mono">
+              {currentDateFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> {user?.degree ? `(${user.degree.split(" ")[0]} • ${user.semester || "Active"})` : `(${user?.semester || "Active"})`}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* Zero-Scroll Density Switcher */}
             <button
               onClick={handleToggleDensity}
-              className={`px-3 py-1.5 rounded border text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded border text-[11px] sm:text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
                 density === "compact"
                   ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm"
                   : "bg-[var(--surface-soft)] text-[var(--muted)] border-[var(--hairline)] hover:text-[var(--ink)]"
               }`}
-              title="Toggle Zero-Scroll Density Mode (Compact Zen vs Comfortable)"
+              title="Toggle Zero-Scroll Density Mode"
             >
               {density === "compact" ? <Rows className="w-3.5 h-3.5" /> : <AlignJustify className="w-3.5 h-3.5" />}
-              <span>{density === "compact" ? "COMPACT ZEN" : "COMFORTABLE"}</span>
+              <span className="hidden sm:inline">{density === "compact" ? "COMPACT" : "COMFORTABLE"}</span>
             </button>
 
             <button
               onClick={() => setIsFocusSanctuaryOpen(true)}
-              className="px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[#d4af37]/40 text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
-              title="Open Focus Sanctuary (Ctrl+Shift+F)"
+              className="px-2.5 sm:px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[#d4af37]/40 text-[11px] sm:text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
+              title="Open Focus Sanctuary"
             >
               <Timer className="w-3.5 h-3.5 text-[#d4af37]" />
-              <span>Focus Room</span>
+              <span>Focus</span>
             </button>
 
             <button
               onClick={onOpenQuickAdd}
-              className="px-3.5 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded transition-all cursor-pointer shadow-sm"
+              className="px-3 sm:px-3.5 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded transition-all cursor-pointer shadow-sm ml-auto sm:ml-0"
             >
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
               <span>Add Task</span>
             </button>
           </div>
@@ -352,7 +374,7 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
 
         {/* 3. ACTIVE VIEW CONTENT */}
         {dashboardTab === "summary" && (
-          <div className={`${density === "compact" ? "space-y-5" : "space-y-8"} animate-in fade-in duration-200`}>
+          <div className={`${density === "compact" ? "space-y-4 sm:space-y-5" : "space-y-6 sm:space-y-8"} animate-in fade-in duration-200`}>
             
             {/* Top 4 KPI Metrics */}
             <div className={`grid grid-cols-2 lg:grid-cols-4 ${density === "compact" ? "gap-3" : "gap-4 sm:gap-6"}`}>
