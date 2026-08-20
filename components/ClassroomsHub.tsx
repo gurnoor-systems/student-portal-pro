@@ -31,22 +31,6 @@ interface MaterialItem {
   uploadedAt: string;
 }
 
-const DEFAULT_MATERIALS: Record<string, MaterialItem[]> = {
-  usr_gurnoor_uwaterloo_303: [
-    { id: "m1", courseCode: "CS 341", folderName: "Lecture Slides", fileName: "CS341_Weeks1-6_Algorithms.pdf", fileSize: "4.8 MB", fileType: "pdf", uploadedAt: "2 days ago" },
-    { id: "m2", courseCode: "CS 341", folderName: "Midterm Cheat Sheets", fileName: "Dynamic_Programming_Master_Notes.pdf", fileSize: "1.2 MB", fileType: "pdf", uploadedAt: "Yesterday" },
-    { id: "m3", courseCode: "CS 350", folderName: "Lab Manuals", fileName: "OS161_Virtual_Memory_Specs.pdf", fileSize: "2.5 MB", fileType: "pdf", uploadedAt: "3 days ago" },
-  ],
-  usr_rahul_iit_101: [
-    { id: "m4", courseCode: "EE 201", folderName: "Lecture Slides", fileName: "Circuit_Theory_AC_Resonance.pdf", fileSize: "5.1 MB", fileType: "pdf", uploadedAt: "4 days ago" },
-    { id: "m5", courseCode: "ME 302", folderName: "Lab Manuals", fileName: "Navier_Stokes_Derivations.pdf", fileSize: "3.4 MB", fileType: "pdf", uploadedAt: "Yesterday" },
-  ],
-  usr_martini_uoft_202: [
-    { id: "m6", courseCode: "BIO 210", folderName: "Lecture Slides", fileName: "Human_Anatomy_Cranial_Nerves.pdf", fileSize: "8.2 MB", fileType: "pdf", uploadedAt: "1 day ago" },
-    { id: "m7", courseCode: "CHM 220", folderName: "Midterm Cheat Sheets", fileName: "Organic_Synthesis_Reaction_Mechanisms.pdf", fileSize: "2.1 MB", fileType: "pdf", uploadedAt: "3 days ago" },
-  ]
-};
-
 export default function ClassroomsHub() {
   const { user, userData, addCourse, deleteCourse } = useAuth();
 
@@ -55,9 +39,12 @@ export default function ClassroomsHub() {
   const [activeFolderName, setActiveFolderName] = useState<string>("all");
   const [materials, setMaterials] = useState<MaterialItem[]>(() => {
     if (!user) return [];
-    return DEFAULT_MATERIALS[user.id] || [
-      { id: "m_def", courseCode: "CS 341", folderName: "General Notes", fileName: "Course_Overview_Syllabus.pdf", fileSize: "1.1 MB", fileType: "pdf", uploadedAt: "Recently" }
-    ];
+    try {
+      const raw = localStorage.getItem(`student_portal_user_${user.id}_materials`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
   });
 
   // Modals

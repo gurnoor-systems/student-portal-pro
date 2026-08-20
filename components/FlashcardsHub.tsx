@@ -29,49 +29,19 @@ interface Flashcard {
   lastReviewed?: string;
 }
 
-const STARTER_FLASHCARDS: Flashcard[] = [
-  {
-    id: "fc1",
-    courseCode: "CS 341",
-    frontQuestion: "What is the optimal substructure property in Dynamic Programming?",
-    backAnswer: "A problem exhibits optimal substructure if an optimal solution to the problem contains optimal solutions to sub-problems.",
-    mastery: "mastered"
-  },
-  {
-    id: "fc2",
-    courseCode: "CS 341",
-    frontQuestion: "What is the time complexity of the Floyd-Warshall All-Pairs Shortest Path algorithm?",
-    backAnswer: "O(V^3) time complexity with O(V^2) space complexity.",
-    mastery: "learning"
-  },
-  {
-    id: "fc3",
-    courseCode: "CS 350",
-    frontQuestion: "What is the difference between Internal and External Fragmentation in OS Paging?",
-    backAnswer: "Internal: Unused memory within an allocated fixed-size page. External: Unused memory scattered between dynamic variable-sized segments.",
-    mastery: "new"
-  },
-  {
-    id: "fc4",
-    courseCode: "CS 350",
-    frontQuestion: "Explain the Four Conditions necessary for a Deadlock to occur (Coffman Conditions).",
-    backAnswer: "1. Mutual Exclusion, 2. Hold and Wait, 3. No Preemption, 4. Circular Wait.",
-    mastery: "learning"
-  },
-  {
-    id: "fc5",
-    courseCode: "MATH 201",
-    frontQuestion: "When is a square matrix A invertible in terms of its Determinant and Eigenvalues?",
-    backAnswer: "A is invertible iff det(A) != 0, and all of its eigenvalues are strictly non-zero.",
-    mastery: "mastered"
-  }
-];
-
 export default function FlashcardsHub() {
-  const { user, getUserData } = useAuth();
-  const userData = getUserData();
+  const { user, userData } = useAuth();
 
-  const [cards, setCards] = useState<Flashcard[]>(STARTER_FLASHCARDS);
+  const [cards, setCards] = useState<Flashcard[]>(() => {
+    if (!user) return [];
+    try {
+      const raw = localStorage.getItem(`student_portal_user_${user.id}_flashcards`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
   const [selectedCourse, setSelectedCourse] = useState<string>("ALL");
   const [currentCardIndex, setCurrentCardIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
@@ -79,9 +49,16 @@ export default function FlashcardsHub() {
 
   // New card creation modal / input
   const [isNewCardModalOpen, setIsNewCardModalOpen] = useState<boolean>(false);
-  const [newCourseCode, setNewCourseCode] = useState<string>(userData.courses[0]?.courseCode || "CS 341");
+  const [newCourseCode, setNewCourseCode] = useState<string>(userData.courses[0]?.courseCode || "CS 101");
   const [newQuestion, setNewQuestion] = useState<string>("");
   const [newAnswer, setNewAnswer] = useState<string>("");
+
+  const persistCards = (next: Flashcard[]) => {
+    setCards(next);
+    if (user) {
+      localStorage.setItem(`student_portal_user_${user.id}_flashcards`, JSON.stringify(next));
+    }
+  };
 
   // Filter cards by course
   const filteredCards = useMemo(() => {
@@ -113,7 +90,8 @@ export default function FlashcardsHub() {
 
   const handleRateCard = (masteryLevel: "new" | "learning" | "mastered") => {
     if (!currentCard) return;
-    setCards(prev => prev.map(c => c.id === currentCard.id ? { ...c, mastery: masteryLevel, lastReviewed: new Date().toISOString() } : c));
+    const next = cards.map(c => c.id === currentCard.id ? { ...c, mastery: masteryLevel, lastReviewed: new Date().toISOString() } : c);
+    persistCards(next);
     handleNextCard();
   };
 
@@ -129,7 +107,8 @@ export default function FlashcardsHub() {
       mastery: "new"
     };
 
-    setCards(prev => [newCard, ...prev]);
+    const next = [newCard, ...cards];
+    persistCards(next);
     setNewQuestion("");
     setNewAnswer("");
     setIsNewCardModalOpen(false);

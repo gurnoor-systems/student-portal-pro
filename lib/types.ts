@@ -5,6 +5,7 @@ export interface UserProfile {
   emailVerified: boolean;
   googleVerified: boolean;
   university: string;
+  degree: string;
   major: string;
   semester: string;
   googleCalendarSynced: boolean;
@@ -75,6 +76,7 @@ export interface RegisteredAccount {
   emailVerified: boolean;
   googleVerified: boolean;
   university: string;
+  degree: string;
   major: string;
   semester: string;
   googleCalendarSynced: boolean;

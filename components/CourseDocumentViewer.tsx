@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { 
   FileText, 
@@ -15,190 +15,352 @@ import {
   ChevronRight,
   FolderOpen,
   Sparkles,
-  Highlighter
+  Highlighter,
+  Plus,
+  Trash2,
+  Upload,
+  CheckCircle2
 } from "lucide-react";
 
-interface DocumentItem {
+export interface DocumentItem {
   id: string;
   courseCode: string;
   title: string;
-  type: "Syllabus" | "Lecture Slides" | "Past Exam" | "Lab Manual";
+  type: "Syllabus" | "Lecture Slides" | "Past Exam" | "Lab Manual" | "Notes";
   pageCount: number;
   content: string[];
 }
 
-const SAMPLE_DOCS: DocumentItem[] = [
-  {
-    id: "doc1",
-    courseCode: "CS 350",
-    title: "CS 350 - Operating Systems Syllabus & Grading Policies",
-    type: "Syllabus",
-    pageCount: 3,
-    content: [
-      "Page 1: Course Overview & Learning Objectives\n- Instructor: Dr. Chen (Office Hours: Tue/Thu 3-5 PM)\n- Topics: Thread concurrency, virtual memory paging, file systems, deadlock prevention.\n- Prerequisites: CS 246, CS 251.",
-      "Page 2: Grading Scheme & Deliverables Breakdown\n- Programming Assignments (OS161 Kernel): 25%\n- Midterm Exam: 25%\n- Lab Quizzes: 15%\n- Comprehensive Final Exam: 35%\n- Note: Must achieve >= 50% weighted average on exams to pass the course.",
-      "Page 3: Academic Integrity & Collaboration Rules\n- All kernel code submissions are evaluated via automated plagiarism detection (MOSS).\n- Pair programming is permitted on designated milestones with signed declarations."
-    ]
-  },
-  {
-    id: "doc2",
-    courseCode: "CS 341",
-    title: "CS 341 - Lecture 08: Dynamic Programming & Matrix Chain Multiplication",
-    type: "Lecture Slides",
-    pageCount: 3,
-    content: [
-      "Page 1: Introduction to Dynamic Programming\n- Key Properties: Optimal Substructure & Overlapping Subproblems.\n- Memoization (Top-Down with recursion cache) vs. Tabulation (Bottom-Up iterative table).",
-      "Page 2: Matrix Chain Multiplication Formulation\n- Given a sequence of matrices A1, A2, ..., An, find the optimal parenthesization to minimize scalar multiplications.\n- Recurrence: m[i, j] = min_{i <= k < j} { m[i, k] + m[k+1, j] + p_{i-1} * p_k * p_j }.",
-      "Page 3: Algorithm Analysis & Complexity\n- Time Complexity: O(n^3) due to n^2 subproblems each requiring O(n) split evaluation.\n- Space Complexity: O(n^2) auxiliary matrix table."
-    ]
-  },
-  {
-    id: "doc3",
-    courseCode: "MATH 201",
-    title: "MATH 201 - Midterm Formula Sheet & Key Theorems",
-    type: "Past Exam",
-    pageCount: 2,
-    content: [
-      "Page 1: Linear Transformations & Matrix Algebra\n- Rank-Nullity Theorem: dim(V) = rank(T) + nullity(T).\n- Determinant properties: det(AB) = det(A)det(B); det(A^-1) = 1/det(A).\n- Invertible Matrix Theorem: det(A) != 0 <=> cols of A are linearly independent.",
-      "Page 2: Eigenvalues, Diagonalization & Spectral Theorem\n- Characteristic polynomial: det(A - lambda*I) = 0.\n- Diagonalization: A = P * D * P^-1 exists iff A has n linearly independent eigenvectors.\n- Symmetric matrices have real eigenvalues and orthogonal eigenvectors."
-    ]
-  }
-];
-
 export default function CourseDocumentViewer() {
-  const { user, getUserData } = useAuth();
-  const userData = getUserData();
+  const { user, userData } = useAuth();
+  const [documents, setDocuments] = useState<DocumentItem[]>(() => {
+    if (!user) return [];
+    try {
+      const raw = localStorage.getItem(`student_portal_user_${user.id}_documents`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  const [selectedDocId, setSelectedDocId] = useState<string>(SAMPLE_DOCS[0].id);
+  const [selectedDocId, setSelectedDocId] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(0);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
-  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  const activeDoc = SAMPLE_DOCS.find(d => d.id === selectedDocId) || SAMPLE_DOCS[0];
+  // New Document Form
+  const [newTitle, setNewTitle] = useState("");
+  const [newCourseCode, setNewCourseCode] = useState(userData.courses[0]?.courseCode || "CS 101");
+  const [newDocType, setNewDocType] = useState<DocumentItem["type"]>("Lecture Slides");
+  const [newPageContent, setNewPageContent] = useState("");
+
+  // Persist user documents
+  const persistDocs = (nextDocs: DocumentItem[]) => {
+    setDocuments(nextDocs);
+    if (user) {
+      localStorage.setItem(`student_portal_user_${user.id}_documents`, JSON.stringify(nextDocs));
+    }
+  };
+
+  useEffect(() => {
+    if (documents.length > 0 && !selectedDocId) {
+      setSelectedDocId(documents[0].id);
+    }
+  }, [documents, selectedDocId]);
+
+  const activeDoc = documents.find(d => d.id === selectedDocId) || documents[0];
+
+  const handleAddDocument = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    const pages = newPageContent.trim() 
+      ? newPageContent.split("\n\n---\n\n")
+      : [`Page 1: ${newTitle.trim()}\n\nUploaded notes and course reading materials.`];
+
+    const newDoc: DocumentItem = {
+      id: `doc_${Date.now()}`,
+      courseCode: newCourseCode.trim().toUpperCase(),
+      title: newTitle.trim(),
+      type: newDocType,
+      pageCount: pages.length,
+      content: pages
+    };
+
+    const next = [newDoc, ...documents];
+    persistDocs(next);
+    setSelectedDocId(newDoc.id);
+    setCurrentPage(0);
+    setNewTitle("");
+    setNewPageContent("");
+    setIsAddModalOpen(false);
+  };
+
+  const handleDeleteDocument = (docId: string) => {
+    const next = documents.filter(d => d.id !== docId);
+    persistDocs(next);
+    if (selectedDocId === docId) {
+      setSelectedDocId(next[0]?.id || "");
+      setCurrentPage(0);
+    }
+  };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-200">
+    <div className="space-y-6 animate-in fade-in duration-200">
       
       {/* Header section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[var(--hairline)]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--hairline)]">
         <div>
           <div className="text-[10px] font-mono tracking-[2px] uppercase text-[var(--primary)] font-bold">
             ACADEMIC REPOSITORY
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--ink)]">
+          <h2 className="text-2xl font-bold tracking-tight text-[var(--ink)]">
             Course Document & Slide Reader
           </h2>
-          <p className="text-xs text-[var(--muted)] font-light mt-1">
-            Preview syllabi, lecture slides, and past exams directly in your workspace.
+          <p className="text-xs text-[var(--muted)] font-light mt-0.5">
+            Preview syllabi, lecture slides, and personal notes directly inside your portal.
           </p>
         </div>
+
+        <button
+          onClick={() => setIsAddModalOpen(true)}
+          className="px-3.5 py-2 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded transition-all cursor-pointer shadow-sm"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Upload Document</span>
+        </button>
       </div>
 
-      {/* Main Two-Column Reader Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* Left Column: Document File List (4 Cols) */}
-        <div className="lg:col-span-4 space-y-3">
-          <div className="text-xs font-bold font-mono text-[var(--muted)] uppercase tracking-wider px-1">
-            ENROLLED COURSE MATERIALS
+      {documents.length === 0 ? (
+        /* Clean Slate Empty State */
+        <div className="py-16 text-center space-y-4 bg-[var(--surface-card)] border border-[var(--hairline)] rounded-2xl p-8">
+          <BookOpen className="w-10 h-10 text-[var(--primary)] mx-auto opacity-70" />
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h3 className="text-base font-bold text-[var(--ink)]">No Course Documents Uploaded</h3>
+            <p className="text-xs text-[var(--muted)] font-light leading-relaxed">
+              Your document repository is clear. Upload course syllabi, lecture slide notes, or past exam formula sheets to read and annotate them directly here.
+            </p>
           </div>
-
-          <div className="space-y-2.5">
-            {SAMPLE_DOCS.map(doc => {
-              const isSelected = doc.id === selectedDocId;
-              return (
-                <div
-                  key={doc.id}
-                  onClick={() => { setSelectedDocId(doc.id); setCurrentPage(0); }}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer space-y-2 ${
-                    isSelected
-                      ? "bg-[var(--surface-card)] border-[var(--primary)] shadow-md"
-                      : "bg-[var(--surface-soft)] border-[var(--hairline)] hover:border-[var(--primary)]/50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[var(--primary)]/10 text-[var(--primary)]">
-                      {doc.courseCode}
-                    </span>
-                    <span className="text-[10px] text-[var(--muted)] font-mono">
-                      {doc.pageCount} Pages • {doc.type}
-                    </span>
-                  </div>
-
-                  <div className="text-xs font-bold text-[var(--ink)] leading-snug">
-                    {doc.title}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="px-4 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase rounded-lg cursor-pointer transition-all shadow-sm"
+          >
+            + Upload First Document
+          </button>
         </div>
-
-        {/* Right Column: In-Browser PDF Document Canvas (8 Cols) */}
-        <div className="lg:col-span-8 p-6 bg-[var(--surface-card)] border border-[var(--hairline)] rounded-2xl shadow-xl space-y-5 flex flex-col justify-between min-h-[500px]">
+      ) : (
+        /* Main Two-Column Reader Layout */
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
-          {/* Reader Top Toolbar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[var(--hairline)] pb-4">
-            <div className="space-y-0.5">
-              <div className="text-xs font-bold text-[var(--ink)]">{activeDoc.title}</div>
-              <div className="text-[10px] text-[var(--muted)] font-mono">
-                Page {currentPage + 1} of {activeDoc.pageCount}
+          {/* Left Column: Document File List (4 Cols) */}
+          <div className="lg:col-span-4 space-y-3">
+            <div className="text-xs font-bold font-mono text-[var(--muted)] uppercase tracking-wider px-1">
+              MY COURSE MATERIALS ({documents.length})
+            </div>
+
+            <div className="space-y-2.5 max-h-[600px] overflow-y-auto pr-1">
+              {documents.map(doc => {
+                const isSelected = doc.id === selectedDocId;
+                return (
+                  <div
+                    key={doc.id}
+                    onClick={() => { setSelectedDocId(doc.id); setCurrentPage(0); }}
+                    className={`p-3.5 rounded-xl border transition-all cursor-pointer space-y-2 ${
+                      isSelected
+                        ? "bg-[var(--surface-card)] border-[var(--primary)] shadow-sm ring-1 ring-[var(--primary)]"
+                        : "bg-[var(--surface-soft)] border-[var(--hairline)] hover:border-[var(--primary)]/50"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-[var(--primary)]/15 text-[var(--primary)]">
+                        {doc.courseCode}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-[var(--muted)] font-mono">
+                          {doc.pageCount} {doc.pageCount === 1 ? "Page" : "Pages"} • {doc.type}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }}
+                          className="text-[var(--muted)] hover:text-red-500 p-1 transition-colors"
+                          title="Delete Document"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-xs font-bold text-[var(--ink)] leading-snug line-clamp-2">
+                      {doc.title}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Right Column: Interactive Document Canvas (8 Cols) */}
+          <div className="lg:col-span-8 bg-[var(--surface-card)] border border-[var(--hairline)] rounded-2xl overflow-hidden shadow-sm flex flex-col justify-between">
+            
+            {/* Toolbar */}
+            {activeDoc && (
+              <div className="p-3.5 bg-[var(--surface-soft)] border-b border-[var(--hairline)] flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[var(--ink)] truncate max-w-[280px]">
+                    {activeDoc.title}
+                  </span>
+                  <span className="text-[10px] font-mono text-[var(--muted)]">
+                    Page {currentPage + 1} of {activeDoc.pageCount}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setZoomLevel(prev => Math.max(75, prev - 15))}
+                    className="p-1.5 hover:bg-[var(--surface-strong)] text-[var(--ink)] rounded border border-[var(--hairline)] cursor-pointer"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[10px] font-mono text-[var(--muted)] w-10 text-center">
+                    {zoomLevel}%
+                  </span>
+                  <button
+                    onClick={() => setZoomLevel(prev => Math.min(150, prev + 15))}
+                    className="p-1.5 hover:bg-[var(--surface-strong)] text-[var(--ink)] rounded border border-[var(--hairline)] cursor-pointer"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Zoom Controls & Actions */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setZoomLevel(prev => Math.max(80, prev - 10))}
-                className="p-1.5 rounded bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs text-[var(--ink)] hover:text-[var(--primary)] cursor-pointer"
-                title="Zoom Out"
-              >
-                <ZoomOut className="w-3.5 h-3.5" />
-              </button>
-              <span className="text-[10px] font-mono text-[var(--muted)] w-10 text-center">{zoomLevel}%</span>
-              <button
-                onClick={() => setZoomLevel(prev => Math.min(140, prev + 10))}
-                className="p-1.5 rounded bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs text-[var(--ink)] hover:text-[var(--primary)] cursor-pointer"
-                title="Zoom In"
-              >
-                <ZoomIn className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+            {/* Document Content Page */}
+            {activeDoc && (
+              <div className="p-6 md:p-8 min-h-[380px] bg-[var(--canvas)] flex flex-col justify-between">
+                <div 
+                  className="prose dark:prose-invert max-w-none font-mono text-xs leading-relaxed text-[var(--ink)] whitespace-pre-wrap transition-all"
+                  style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: "top left" }}
+                >
+                  {activeDoc.content[currentPage] || activeDoc.content[0] || "No content on this page."}
+                </div>
 
-          {/* Document Content Page Sheet */}
-          <div className="p-8 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl my-auto font-mono text-xs text-[var(--ink)] leading-relaxed whitespace-pre-line shadow-inner overflow-y-auto max-h-[360px]" style={{ fontSize: `${(zoomLevel / 100) * 12}px` }}>
-            {activeDoc.content[currentPage] || "End of Document."}
-          </div>
+                {/* Page Navigation Footer */}
+                <div className="flex items-center justify-between pt-6 border-t border-[var(--hairline)] mt-6">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+                    disabled={currentPage === 0}
+                    className="px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] disabled:opacity-40 text-xs font-bold font-mono text-[var(--ink)] rounded border border-[var(--hairline)] flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>PREVIOUS PAGE</span>
+                  </button>
 
-          {/* Reader Page Navigation Footer */}
-          <div className="flex items-center justify-between border-t border-[var(--hairline)] pt-4">
-            <button
-              disabled={currentPage === 0}
-              onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
-              className="px-3.5 py-2 rounded-lg bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs font-bold text-[var(--ink)] flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-              <span>PREVIOUS PAGE</span>
-            </button>
+                  <span className="text-xs font-mono text-[var(--muted)]">
+                    PAGE {currentPage + 1} / {activeDoc.pageCount}
+                  </span>
 
-            <span className="text-xs font-mono text-[var(--muted)]">
-              PAGE {currentPage + 1} / {activeDoc.pageCount}
-            </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(activeDoc.pageCount - 1, prev + 1))}
+                    disabled={currentPage === activeDoc.pageCount - 1}
+                    className="px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] disabled:opacity-40 text-xs font-bold font-mono text-[var(--ink)] rounded border border-[var(--hairline)] flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    <span>NEXT PAGE</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
 
-            <button
-              disabled={currentPage === activeDoc.pageCount - 1}
-              onClick={() => setCurrentPage(prev => Math.min(activeDoc.pageCount - 1, prev + 1))}
-              className="px-3.5 py-2 rounded-lg bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs font-bold text-[var(--ink)] flex items-center gap-1.5 disabled:opacity-40 cursor-pointer"
-            >
-              <span>NEXT PAGE</span>
-              <ChevronRight className="w-3.5 h-3.5" />
-            </button>
           </div>
 
         </div>
+      )}
 
-      </div>
+      {/* Upload Document Modal */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0f141c] border border-white/15 text-white w-full max-w-lg p-6 rounded-2xl shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[var(--primary)]" />
+                <span>Upload Course Document</span>
+              </h3>
+              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white">✕</button>
+            </div>
+
+            <form onSubmit={handleAddDocument} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">DOCUMENT TITLE</label>
+                <input
+                  type="text"
+                  required
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="e.g. CS 350 - OS161 Virtual Memory Architecture Notes"
+                  className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-white outline-none rounded-xl focus:border-[var(--primary)]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">COURSE CODE</label>
+                  <input
+                    type="text"
+                    required
+                    value={newCourseCode}
+                    onChange={(e) => setNewCourseCode(e.target.value)}
+                    placeholder="e.g. CS 350"
+                    className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-white outline-none rounded-xl focus:border-[var(--primary)] font-mono uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">DOCUMENT TYPE</label>
+                  <select
+                    value={newDocType}
+                    onChange={(e) => setNewDocType(e.target.value as any)}
+                    className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-white outline-none rounded-xl"
+                  >
+                    <option value="Lecture Slides">Lecture Slides</option>
+                    <option value="Syllabus">Syllabus</option>
+                    <option value="Past Exam">Past Exam</option>
+                    <option value="Lab Manual">Lab Manual</option>
+                    <option value="Notes">Personal Notes</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">CONTENT / TEXT (OPTIONAL)</label>
+                <textarea
+                  rows={4}
+                  value={newPageContent}
+                  onChange={(e) => setNewPageContent(e.target.value)}
+                  placeholder="Paste lecture text or reading highlights here. Use '---' on a new line to create page breaks."
+                  className="w-full p-3 bg-[#090d12] border border-white/15 text-white outline-none rounded-xl focus:border-[var(--primary)] font-mono text-xs resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="w-1/3 py-2.5 border border-white/15 text-slate-300 hover:text-white rounded-xl uppercase font-bold text-xs cursor-pointer"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="submit"
+                  className="w-2/3 py-2.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white rounded-xl uppercase font-bold text-xs cursor-pointer shadow-sm"
+                >
+                  SAVE & VIEW DOCUMENT
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
     </div>
   );

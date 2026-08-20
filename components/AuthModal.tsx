@@ -61,6 +61,17 @@ const SUGGESTED_COURSES = [
   "ECON 101 - Microeconomics"
 ];
 
+const SUGGESTED_DEGREES = [
+  "B.Tech (Bachelor of Technology)",
+  "B.Sc (Bachelor of Science)",
+  "B.E. (Bachelor of Engineering)",
+  "BBA (Bachelor of Business Admin)",
+  "B.A. (Bachelor of Arts)",
+  "M.S. / M.Sc (Master of Science)",
+  "MBA (Master of Business Admin)",
+  "Ph.D. (Doctorate)"
+];
+
 export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalProps) {
   const { signInWithPassword, signUpWithPassword, signInWithGoogleCustom, resendEmailConfirmation } = useAuth();
   const [tab, setTab] = useState<"signin" | "signup">(initialTab === "signup" ? "signup" : "signin");
@@ -73,8 +84,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
 
-  // Campus & Semester States
+  // Campus, Degree & Semester States
   const [university, setUniversity] = useState("University of Waterloo");
+  const [degree, setDegree] = useState("B.Tech (Bachelor of Technology)");
   const [semester, setSemester] = useState("Fall 2026");
   const [major, setMajor] = useState("Computer Science");
   const [selectedCourses, setSelectedCourses] = useState<string[]>([
@@ -95,6 +107,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [googleEmail, setGoogleEmail] = useState("");
   const [googleName, setGoogleName] = useState("");
   const [googleUni, setGoogleUni] = useState("University of Waterloo");
+  const [googleDegree, setGoogleDegree] = useState("B.Tech (Bachelor of Technology)");
   const [googleSemester, setGoogleSemester] = useState("Fall 2026");
 
   if (!isOpen) return null;
@@ -137,6 +150,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     const res = await signUpWithPassword(
       fullName,
       university || "University of Waterloo", 
+      degree || "B.Tech (Bachelor of Technology)",
       semester || "Fall 2026",
       major || "Computer Science", 
       email, 
@@ -173,6 +187,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
       googleEmail, 
       googleName, 
       googleUni || "University of Waterloo", 
+      googleDegree || "B.Tech (Bachelor of Technology)",
       googleSemester || "Fall 2026",
       "Computer Science",
       selectedCourses,
@@ -381,6 +396,23 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   className="w-full h-10 px-2.5 bg-[#090d12] border border-white/15 text-xs text-white outline-none rounded-xl"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                DEGREE / PROGRAM
+              </label>
+              <select
+                value={googleDegree}
+                onChange={(e) => setGoogleDegree(e.target.value)}
+                className="w-full h-10 px-2.5 bg-[#090d12] border border-white/15 text-xs text-white outline-none rounded-xl font-medium"
+              >
+                {SUGGESTED_DEGREES.map((deg, dIdx) => (
+                  <option key={dIdx} value={deg} className="bg-[#0f141c] text-white">
+                    {deg}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Google Calendar Sync Option */}
@@ -606,6 +638,24 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Degree Selection */}
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-mono uppercase text-slate-300">
+                DEGREE / PROGRAM
+              </label>
+              <select
+                value={degree}
+                onChange={(e) => setDegree(e.target.value)}
+                className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-medium"
+              >
+                {SUGGESTED_DEGREES.map((deg, dIdx) => (
+                  <option key={dIdx} value={deg} className="bg-[#0f141c] text-white">
+                    {deg}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Semester / Term Selection */}

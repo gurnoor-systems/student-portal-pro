@@ -157,10 +157,10 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
 
   const navItems = [
     { id: "summary", label: "Today", icon: LayoutDashboard, badge: metrics.urgentCount > 0 ? `${metrics.urgentCount}` : null },
-    { id: "tracker", label: "Tasks & Kanban", icon: CheckSquare, badge: `${userData.tasks.filter(t => t.status !== "completed").length}` },
+    { id: "tracker", label: "Tasks", icon: CheckSquare, badge: `${userData.tasks.filter(t => t.status !== "completed").length}` },
     { id: "classrooms", label: "Classes & Links", icon: Users, badge: `${metrics.activeClasses}` },
     { id: "calendar", label: "Calendar", icon: CalendarIcon, badge: user?.googleCalendarSynced ? "Sync" : null },
-    { id: "exams", label: "Exams & AI Plan", icon: Clock, badge: "AI" },
+    { id: "exams", label: "Exams & Plan", icon: Clock, badge: "AI" },
     { id: "flashcards", label: "Flashcards & Recall", icon: Brain, badge: "Recall" },
     { id: "documents", label: "Course Documents", icon: FileText, badge: "Docs" },
     { id: "analytics", label: "Analytics & GPA", icon: BarChart3, badge: "14d" },
@@ -263,7 +263,9 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
               <div className="font-bold text-[var(--ink)] truncate">{user?.university || "University"}</div>
               <div className="text-[10px] text-[var(--muted)] font-mono flex items-center justify-between">
                 <span>{user?.semester || "Active Semester"}</span>
-                <span className="text-[var(--primary)] font-bold">{user?.major || "Student"}</span>
+                <span className="text-[var(--primary)] font-bold truncate max-w-[120px]" title={user?.degree || user?.major || "Student"}>
+                  {user?.degree ? user.degree.split(" ")[0] : user?.major || "Student"}
+                </span>
               </div>
               <div className="text-[10px] text-[var(--muted)] font-mono flex items-center gap-1.5 pt-1 border-t border-[var(--hairline)]">
                 <span className={`w-1.5 h-1.5 rounded-full ${user?.googleCalendarSynced ? "bg-emerald-500" : "bg-blue-500"}`} />
@@ -297,7 +299,7 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
               )}
             </div>
             <p className="text-xs text-[var(--muted)] font-mono">
-              {currentDateFormatted} • {currentTimeFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> ({user?.semester || "Active Semester"})
+              {currentDateFormatted} • {currentTimeFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> {user?.degree ? `(${user.degree.split(" ")[0]} • ${user.semester || "Active Semester"})` : `(${user?.semester || "Active Semester"})`}
             </p>
           </div>
 
@@ -429,7 +431,7 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
                     <div className="space-y-1">
                       <div className="text-xs font-bold text-[var(--ink)]">No Active Tasks in Backlog</div>
                       <p className="text-[11px] text-[var(--muted)] font-light max-w-sm mx-auto">
-                        Your workspace is clear. Press <span className="font-mono bg-[var(--surface-soft)] px-1 py-0.5 border">Ctrl+K</span> or click below to capture your first assignment.
+                        Your workspace is clear. Press <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-[var(--surface-strong)] text-[var(--ink)] border border-[var(--hairline)] rounded shadow-xs">Ctrl+K</kbd> or click below to capture your first assignment.
                       </p>
                     </div>
                     <button
