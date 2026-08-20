@@ -1,12 +1,39 @@
 "use client";
 
-// Pure Web Audio API Soundscape Generator (Zero external assets or network dependencies)
+// Pure Web Audio API Multi-Track Soundscape Synthesizer
+// Zero external assets or network dependencies
+
+export type SoundscapeTrackId = "rain" | "brown" | "green" | "gamma40" | "alpha10" | "theta6" | "cafe";
+
+export interface SoundTrackState {
+  id: SoundscapeTrackId;
+  name: string;
+  category: "Nature" | "Binaural" | "Noise" | "Atmosphere";
+  frequencyLabel?: string;
+  volume: number; // 0.0 to 1.0
+  active: boolean;
+}
+
+export const SOUND_TRACK_DEFINITIONS: Record<SoundscapeTrackId, { name: string; category: SoundTrackState["category"]; frequencyLabel?: string; defaultVolume: number }> = {
+  rain: { name: "Gentle Rain", category: "Nature", defaultVolume: 0.6 },
+  brown: { name: "Deep Brown Noise", category: "Noise", frequencyLabel: "ADHD / Executive Focus", defaultVolume: 0.5 },
+  green: { name: "Forest Green Noise", category: "Nature", frequencyLabel: "500Hz Centered Ambience", defaultVolume: 0.5 },
+  gamma40: { name: "40 Hz Gamma Waves", category: "Binaural", frequencyLabel: "Hyper-Focus (Math & Coding)", defaultVolume: 0.4 },
+  alpha10: { name: "10 Hz Alpha Waves", category: "Binaural", frequencyLabel: "Calm Flow State & Reading", defaultVolume: 0.4 },
+  theta6: { name: "6 Hz Theta Waves", category: "Binaural", frequencyLabel: "Creative Problem Solving", defaultVolume: 0.3 },
+  cafe: { name: "Warm Cafe", category: "Atmosphere", defaultVolume: 0.4 }
+};
+
+interface ActiveAudioTrack {
+  gainNode: GainNode;
+  nodes: (AudioNode | number)[];
+}
+
 class SoundscapeEngine {
   private ctx: AudioContext | null = null;
-  private currentType: "none" | "rain" | "noise" | "alpha" | "cafe" = "none";
-  private gainNode: GainNode | null = null;
-  private nodes: (AudioNode | number)[] = [];
-  private volume: number = 0.4;
+  private masterGain: GainNode | null = null;
+  private masterVolume: number = 0.5;
+  private activeTracks: Map<SoundscapeTrackId, ActiveAudioTrack> = new Map();
 
   private getContext(): AudioContext {
     if (!this.ctx) {
@@ -16,31 +43,259 @@ class SoundscapeEngine {
     if (this.ctx.state === "suspended") {
       this.ctx.resume();
     }
+    if (!this.masterGain && this.ctx) {
+      this.masterGain = this.ctx.createGain();
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+      this.masterGain.connect(this.ctx.destination);
+    }
     return this.ctx;
   }
 
-  public getVolume(): number {
-    return this.volume;
+  public getMasterVolume(): number {
+    return this.masterVolume;
   }
 
-  public getCurrentType(): "none" | "rain" | "noise" | "alpha" | "cafe" {
-    return this.currentType;
-  }
-
-  public isPlaying(): boolean {
-    return this.currentType !== "none";
-  }
-
-  public setVolume(vol: number) {
-    this.volume = Math.max(0, Math.min(1, vol));
-    if (this.gainNode && this.ctx) {
-      this.gainNode.gain.setValueAtTime(this.volume, this.ctx.currentTime);
+  public setMasterVolume(vol: number) {
+    this.masterVolume = Math.max(0, Math.min(1, vol));
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
     }
   }
 
-  public stop() {
+  public isTrackPlaying(id: SoundscapeTrackId): boolean {
+    return this.activeTracks.has(id);
+  }
+
+  public isAnyPlaying(): boolean {
+    return this.activeTracks.size > 0;
+  }
+
+  public setTrackVolume(id: SoundscapeTrackId, volume: number) {
+    const clamped = Math.max(0, Math.min(1, volume));
+    const track = this.activeTracks.get(id);
+    if (track && this.ctx) {
+      track.gainNode.gain.setValueAtTime(clamped, this.ctx.currentTime);
+    }
+  }
+
+  public toggleTrack(id: SoundscapeTrackId, targetVolume: number = 0.5): boolean {
+    if (this.activeTracks.has(id)) {
+      this.stopTrack(id);
+      return false;
+    } else {
+      this.startTrack(id, targetVolume);
+      return true;
+    }
+  }
+
+  public startTrack(id: SoundscapeTrackId, volume: number = 0.5) {
+    if (this.activeTracks.has(id)) {
+      this.setTrackVolume(id, volume);
+      return;
+    }
+
+    const ctx = this.getContext();
+    if (!this.masterGain) return;
+
+    const trackGain = ctx.createGain();
+    trackGain.gain.setValueAtTime(volume, ctx.currentTime);
+    trackGain.connect(this.masterGain);
+
+    const nodes: (AudioNode | number)[] = [];
+
+    switch (id) {
+      case "brown": {
+        // High-density Brown Noise generator with low-pass roll-off
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          output[i] = (lastOut + 0.02 * white) / 1.02;
+          lastOut = output[i];
+          output[i] *= 3.5; // Gain compensation
+        }
+        const brownSource = ctx.createBufferSource();
+        brownSource.buffer = noiseBuffer;
+        brownSource.loop = true;
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(380, ctx.currentTime);
+
+        brownSource.connect(filter);
+        filter.connect(trackGain);
+        brownSource.start();
+        nodes.push(brownSource, filter);
+        break;
+      }
+
+      case "green": {
+        // Nature Green Noise centered around 500Hz
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = (Math.random() * 2 - 1) * 0.4;
+        }
+        const greenSource = ctx.createBufferSource();
+        greenSource.buffer = noiseBuffer;
+        greenSource.loop = true;
+
+        const bandFilter = ctx.createBiquadFilter();
+        bandFilter.type = "bandpass";
+        bandFilter.frequency.setValueAtTime(500, ctx.currentTime);
+        bandFilter.Q.setValueAtTime(0.7, ctx.currentTime);
+
+        greenSource.connect(bandFilter);
+        bandFilter.connect(trackGain);
+        greenSource.start();
+        nodes.push(greenSource, bandFilter);
+        break;
+      }
+
+      case "rain": {
+        // Multi-stage Rain Synthesis
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = (Math.random() * 2 - 1) * 0.35;
+        }
+        const rainSource = ctx.createBufferSource();
+        rainSource.buffer = noiseBuffer;
+        rainSource.loop = true;
+
+        const bandFilter = ctx.createBiquadFilter();
+        bandFilter.type = "bandpass";
+        bandFilter.frequency.setValueAtTime(750, ctx.currentTime);
+        bandFilter.Q.setValueAtTime(0.85, ctx.currentTime);
+
+        rainSource.connect(bandFilter);
+        bandFilter.connect(trackGain);
+        rainSource.start();
+        nodes.push(rainSource, bandFilter);
+        break;
+      }
+
+      case "gamma40": {
+        // 40 Hz Gamma Binaural Waves (200 Hz Left, 240 Hz Right)
+        const merger = ctx.createChannelMerger(2);
+
+        const oscL = ctx.createOscillator();
+        oscL.type = "sine";
+        oscL.frequency.setValueAtTime(200, ctx.currentTime);
+
+        const oscR = ctx.createOscillator();
+        oscR.type = "sine";
+        oscR.frequency.setValueAtTime(240, ctx.currentTime);
+
+        const gainL = ctx.createGain();
+        gainL.gain.setValueAtTime(0.4, ctx.currentTime);
+        const gainR = ctx.createGain();
+        gainR.gain.setValueAtTime(0.4, ctx.currentTime);
+
+        oscL.connect(gainL);
+        gainL.connect(merger, 0, 0);
+
+        oscR.connect(gainR);
+        gainR.connect(merger, 0, 1);
+
+        merger.connect(trackGain);
+        oscL.start();
+        oscR.start();
+        nodes.push(oscL, oscR, gainL, gainR, merger);
+        break;
+      }
+
+      case "alpha10": {
+        // 10 Hz Alpha Binaural Waves (200 Hz Left, 210 Hz Right)
+        const merger = ctx.createChannelMerger(2);
+
+        const oscL = ctx.createOscillator();
+        oscL.type = "sine";
+        oscL.frequency.setValueAtTime(200, ctx.currentTime);
+
+        const oscR = ctx.createOscillator();
+        oscR.type = "sine";
+        oscR.frequency.setValueAtTime(210, ctx.currentTime);
+
+        const gainL = ctx.createGain();
+        gainL.gain.setValueAtTime(0.4, ctx.currentTime);
+        const gainR = ctx.createGain();
+        gainR.gain.setValueAtTime(0.4, ctx.currentTime);
+
+        oscL.connect(gainL);
+        gainL.connect(merger, 0, 0);
+
+        oscR.connect(gainR);
+        gainR.connect(merger, 0, 1);
+
+        merger.connect(trackGain);
+        oscL.start();
+        oscR.start();
+        nodes.push(oscL, oscR, gainL, gainR, merger);
+        break;
+      }
+
+      case "theta6": {
+        // 6 Hz Theta Binaural Waves (180 Hz Left, 186 Hz Right)
+        const merger = ctx.createChannelMerger(2);
+
+        const oscL = ctx.createOscillator();
+        oscL.type = "sine";
+        oscL.frequency.setValueAtTime(180, ctx.currentTime);
+
+        const oscR = ctx.createOscillator();
+        oscR.type = "sine";
+        oscR.frequency.setValueAtTime(186, ctx.currentTime);
+
+        const gainL = ctx.createGain();
+        gainL.gain.setValueAtTime(0.4, ctx.currentTime);
+        const gainR = ctx.createGain();
+        gainR.gain.setValueAtTime(0.4, ctx.currentTime);
+
+        oscL.connect(gainL);
+        gainL.connect(merger, 0, 0);
+
+        oscR.connect(gainR);
+        gainR.connect(merger, 0, 1);
+
+        merger.connect(trackGain);
+        oscL.start();
+        oscR.start();
+        nodes.push(oscL, oscR, gainL, gainR, merger);
+        break;
+      }
+
+      case "cafe": {
+        // Warm Coffeehouse Resonant Filter
+        const osc = ctx.createOscillator();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(110, ctx.currentTime);
+
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(220, ctx.currentTime);
+
+        osc.connect(filter);
+        filter.connect(trackGain);
+        osc.start();
+        nodes.push(osc, filter);
+        break;
+      }
+    }
+
+    this.activeTracks.set(id, { gainNode: trackGain, nodes });
+  }
+
+  public stopTrack(id: SoundscapeTrackId) {
+    const track = this.activeTracks.get(id);
+    if (!track) return;
+
     try {
-      this.nodes.forEach(n => {
+      track.nodes.forEach(n => {
         if (typeof n === "number") {
           clearInterval(n);
         } else if (n && "stop" in n && typeof (n as any).stop === "function") {
@@ -49,148 +304,25 @@ class SoundscapeEngine {
           n.disconnect();
         }
       });
+      track.gainNode.disconnect();
     } catch {
       // ignore
     }
-    this.nodes = [];
-    this.currentType = "none";
+
+    this.activeTracks.delete(id);
   }
 
-  public play(type: "rain" | "noise" | "alpha" | "cafe", volume: number = 0.4) {
-    this.stop();
-    this.volume = volume;
-    const ctx = this.getContext();
-    this.gainNode = ctx.createGain();
-    this.gainNode.gain.setValueAtTime(this.volume, ctx.currentTime);
-    this.gainNode.connect(ctx.destination);
-    this.currentType = type;
-
-    if (type === "noise") {
-      // Calming Pink / Brown Noise Buffer
-      const bufferSize = ctx.sampleRate * 2;
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
-      for (let i = 0; i < bufferSize; i++) {
-        const white = Math.random() * 2 - 1;
-        b0 = 0.99886 * b0 + white * 0.0555179;
-        b1 = 0.99332 * b1 + white * 0.0750759;
-        b2 = 0.96900 * b2 + white * 0.1538520;
-        b3 = 0.86650 * b3 + white * 0.3104856;
-        b4 = 0.55000 * b4 + white * 0.5329522;
-        b5 = -0.7616 * b5 - white * 0.0168980;
-        output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
-        b6 = white * 0.115926;
-      }
-
-      const whiteNoise = ctx.createBufferSource();
-      whiteNoise.buffer = noiseBuffer;
-      whiteNoise.loop = true;
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(450, ctx.currentTime);
-
-      whiteNoise.connect(filter);
-      filter.connect(this.gainNode);
-      whiteNoise.start();
-      this.nodes.push(whiteNoise, filter);
-    } else if (type === "alpha") {
-      // 10 Hz Binaural Flow State Alpha Waves (200 Hz Left, 210 Hz Right)
-      const merger = ctx.createChannelMerger(2);
-
-      const oscL = ctx.createOscillator();
-      oscL.type = "sine";
-      oscL.frequency.setValueAtTime(200, ctx.currentTime);
-
-      const oscR = ctx.createOscillator();
-      oscR.type = "sine";
-      oscR.frequency.setValueAtTime(210, ctx.currentTime);
-
-      const gainL = ctx.createGain();
-      gainL.gain.setValueAtTime(0.5, ctx.currentTime);
-      const gainR = ctx.createGain();
-      gainR.gain.setValueAtTime(0.5, ctx.currentTime);
-
-      oscL.connect(gainL);
-      gainL.connect(merger, 0, 0);
-
-      oscR.connect(gainR);
-      gainR.connect(merger, 0, 1);
-
-      merger.connect(this.gainNode);
-
-      oscL.start();
-      oscR.start();
-      this.nodes.push(oscL, oscR, gainL, gainR, merger);
-    } else if (type === "rain") {
-      // Synthesized Gentle Rain (Lowpassed brown noise + randomized droplet filter)
-      const bufferSize = ctx.sampleRate * 2;
-      const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
-      const output = noiseBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = (Math.random() * 2 - 1) * 0.3;
-      }
-
-      const rainNoise = ctx.createBufferSource();
-      rainNoise.buffer = noiseBuffer;
-      rainNoise.loop = true;
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(800, ctx.currentTime);
-      filter.Q.setValueAtTime(0.8, ctx.currentTime);
-
-      rainNoise.connect(filter);
-      filter.connect(this.gainNode);
-      rainNoise.start();
-      this.nodes.push(rainNoise, filter);
-    } else if (type === "cafe") {
-      // Warm Cafe Ambience (Layered warm bandpass tones)
-      const osc1 = ctx.createOscillator();
-      osc1.type = "triangle";
-      osc1.frequency.setValueAtTime(140, ctx.currentTime);
-
-      const osc2 = ctx.createOscillator();
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(280, ctx.currentTime);
-
-      const filter = ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(320, ctx.currentTime);
-
-      osc1.connect(filter);
-      osc2.connect(filter);
-      filter.connect(this.gainNode);
-
-      osc1.start();
-      osc2.start();
-      this.nodes.push(osc1, osc2, filter);
-    }
+  public stopAll() {
+    const trackIds = Array.from(this.activeTracks.keys());
+    trackIds.forEach(id => this.stopTrack(id));
   }
 
-  // Tibetan Singing Bowl Completion Gong
-  public playCompletionBowl() {
-    const ctx = this.getContext();
-    const now = ctx.currentTime;
-
-    const freqs = [432, 864, 1296];
-    freqs.forEach((f, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(f, now);
-
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.2 / (i + 1), now + 0.05);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + 4.5);
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(now);
-      osc.stop(now + 4.5);
+  public applyPreset(preset: Record<SoundscapeTrackId, number>) {
+    this.stopAll();
+    Object.entries(preset).forEach(([id, vol]) => {
+      if (vol > 0) {
+        this.startTrack(id as SoundscapeTrackId, vol);
+      }
     });
   }
 }
