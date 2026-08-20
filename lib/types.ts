@@ -95,3 +95,34 @@ export interface NotificationItem {
   read: boolean;
   actionUrl?: string;
 }
+
+// Syllabus Auto-Parser Data Contracts
+export interface ParsedDeliverable {
+  id: string;
+  title: string;
+  courseCode: string;
+  dueDate: string; // YYYY-MM-DD
+  dueTime?: string; // HH:MM
+  priority: "high" | "medium" | "low";
+  estimatedHours?: number;
+  selected: boolean;
+}
+
+export interface ParsedExam {
+  id: string;
+  name: string; // e.g. "Midterm Exam 1", "Final Exam"
+  courseCode: string;
+  date: string; // YYYY-MM-DD
+  weightPercent: number; // e.g. 35
+  selected: boolean;
+}
+
+export interface ParsedSyllabusResult {
+  courseCode: string;
+  courseTitle: string;
+  instructor?: string;
+  deliverables: ParsedDeliverable[];
+  exams: ParsedExam[];
+  rawTextPreview?: string;
+}
+
