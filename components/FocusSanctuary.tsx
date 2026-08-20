@@ -33,7 +33,9 @@ import {
   Zap,
   Leaf,
   Sliders,
-  Award
+  Award,
+  Minimize2,
+  Maximize2
 } from "lucide-react";
 
 interface FocusSanctuaryProps {
@@ -51,7 +53,7 @@ const MUSIC_PRESETS = [
 
 export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: FocusSanctuaryProps) {
   const { user, userData } = useAuth();
-  const { theme } = useTheme();
+  const [isPipMode, setIsPipMode] = useState<boolean>(false);
 
   // Timer modes: 'pomodoro' (25m), 'deep' (50m), 'flowtime' (stopwatch), 'custom' (slider)
   const [timerMode, setTimerMode] = useState<"pomodoro" | "deep" | "flowtime" | "custom">("pomodoro");
@@ -227,6 +229,7 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   const handleExitSanctuary = () => {
     soundscapeEngine.stop();
     setIsRunning(false);
+    setIsPipMode(false);
     onClose();
   };
 
@@ -257,6 +260,54 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
 
   if (!isOpen) return null;
 
+  // Mini Floating PiP Mode Widget
+  if (isPipMode) {
+    return (
+      <aside 
+        aria-label="Floating Focus Timer"
+        className="fixed bottom-6 right-6 z-50 bg-[#090d14]/95 border border-[#1d63ff]/60 text-white rounded-2xl shadow-2xl p-3.5 flex items-center gap-3.5 backdrop-blur-md animate-in slide-in-from-bottom-5 duration-200"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className={`w-2.5 h-2.5 rounded-full ${isRunning ? "bg-emerald-400 animate-ping" : "bg-[#1d63ff]"}`} />
+          <div>
+            <div className="text-sm font-mono font-bold tracking-wider text-white">
+              {timerMode === "flowtime" ? formatTime(flowtimeSeconds) : formatTime(timeLeft)}
+            </div>
+            <div className="text-[10px] text-slate-400 font-medium truncate max-w-[130px]">
+              {currentTask?.title || "Deep Focus Session"}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 border-l border-white/10 pl-2.5">
+          <button
+            onClick={() => setIsRunning(!isRunning)}
+            className="p-2 bg-[#1d63ff] hover:bg-[#1652d9] text-white rounded-xl cursor-pointer transition-colors shadow-sm"
+            title={isRunning ? "Pause Focus" : "Start Focus"}
+          >
+            {isRunning ? <Pause className="w-3.5 h-3.5 fill-white" /> : <Play className="w-3.5 h-3.5 fill-white" />}
+          </button>
+
+          <button
+            onClick={() => setIsPipMode(false)}
+            className="p-2 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl cursor-pointer transition-colors"
+            title="Expand to Fullscreen Focus Room"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={handleExitSanctuary}
+            className="p-2 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl cursor-pointer transition-colors"
+            title="Exit Focus Room"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 bg-[#080d14] text-white flex flex-col justify-between overflow-y-auto p-4 sm:p-8 animate-in fade-in duration-200">
       
@@ -274,13 +325,24 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
           </div>
         </div>
 
-        <button
-          onClick={handleExitSanctuary}
-          className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
-          aria-label="Close Focus Room"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsPipMode(true)}
+            className="px-3.5 py-1.5 bg-white/10 hover:bg-white/20 text-slate-200 hover:text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+            title="Minimize into corner Floating Pill"
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">PiP Mode</span>
+          </button>
+
+          <button
+            onClick={handleExitSanctuary}
+            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+            aria-label="Close Focus Room"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </header>
 
       {/* Main Two-Column Focus Workspace */}
