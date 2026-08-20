@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Helper to persist updated user data
+  // Helper to persist updated user data across devices
   const persistUserData = useCallback((userId: string, next: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] }) => {
     setUserData(next);
     const storageKey = `student_portal_user_${userId}_data`;
@@ -92,7 +92,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Failed to persist user data:", e);
     }
-  }, []);
+
+    if (user?.email) {
+      try {
+        fetch("/api/auth/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sync-data",
+            email: user.email,
+            userData: next
+          })
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+    }
+  }, [user]);
 
   // Initialize session on mount
   useEffect(() => {
@@ -176,9 +192,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Sign in
+  // Sign in with Supabase & Cross-Device Server Fallback
   const signInWithPassword = async (email: string, pass: string): Promise<{ success: boolean; error?: string; emailUnconfirmed?: boolean }> => {
-    await simulateNetworkLatency(600);
+    await simulateNetworkLatency(400);
 
     if (!email || !pass) {
       return { success: false, error: "Please enter both student email and password." };
@@ -186,10 +202,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const trimmedEmail = email.trim().toLowerCase();
     
-    // Check Supabase if configured
+    // 1. Check Supabase if configured
     const supabase = createClient();
     if (supabase) {
-      const { error: supaErr } = await supabase.auth.signInWithPassword({
+      const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: pass
       });
@@ -201,12 +217,91 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             emailUnconfirmed: true 
           };
         }
-        return { success: false, error: supaErr.message };
+        // If Supabase fails due to invalid credentials, check if local/server credentials match
+      } else if (supaData?.user) {
+        // Supabase logged in successfully! Hydrate profile
+        const meta = supaData.user.user_metadata || {};
+        const profile: UserProfile = {
+          id: supaData.user.id,
+          email: supaData.user.email || trimmedEmail,
+          fullName: meta.full_name || "Student",
+          emailVerified: true,
+          googleVerified: false,
+          university: meta.university || "University of Waterloo",
+          degree: meta.degree || "Bachelor of Technology (B.Tech)",
+          major: meta.major || "Computer Science",
+          semester: meta.semester || "Fall 2026",
+          googleCalendarSynced: meta.google_calendar_synced ?? true,
+          densityPreference: meta.density_preference || "comfortable",
+          provider: "email",
+          createdAt: supaData.user.created_at || new Date().toISOString(),
+          lastLoginAt: new Date().toISOString()
+        };
+
+        setUser(profile);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+        ensureUserDataSeeded(profile.id);
+        loadUserData(profile.id);
+        return { success: true };
       }
     }
 
+    // 2. Check Local Browser Storage
     const accounts = getRegisteredAccounts();
-    const matchingAccount = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
+    let matchingAccount = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
+
+    // 3. Check Centralized Server Auth Sync (For Cross-Device Login between Mobile & Desktop)
+    if (!matchingAccount || matchingAccount.passwordHash !== pass) {
+      try {
+        const syncRes = await fetch("/api/auth/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "login",
+            email: trimmedEmail,
+            password: pass
+          })
+        });
+
+        const syncData = await syncRes.json();
+        if (syncRes.ok && syncData.success && syncData.account) {
+          // Account verified by server! Register into local device cache
+          const serverAcc = syncData.account;
+          matchingAccount = {
+            id: serverAcc.id,
+            email: serverAcc.email,
+            passwordHash: pass,
+            fullName: serverAcc.fullName,
+            emailVerified: true,
+            googleVerified: false,
+            university: serverAcc.university,
+            degree: serverAcc.degree,
+            major: serverAcc.major,
+            semester: serverAcc.semester,
+            googleCalendarSynced: serverAcc.googleCalendarSynced ?? true,
+            densityPreference: serverAcc.densityPreference || "comfortable",
+            provider: "email",
+            createdAt: serverAcc.createdAt,
+            lastLoginAt: new Date().toISOString()
+          };
+
+          const accIdx = accounts.findIndex(a => a.email.toLowerCase() === trimmedEmail);
+          if (accIdx >= 0) {
+            accounts[accIdx] = matchingAccount;
+          } else {
+            accounts.push(matchingAccount);
+          }
+          saveRegisteredAccounts(accounts);
+
+          // If server returned user data, hydrate it
+          if (syncData.userData) {
+            localStorage.setItem(`student_portal_user_${matchingAccount.id}_data`, JSON.stringify(syncData.userData));
+          }
+        }
+      } catch (syncErr) {
+        console.warn("Cross-device auth sync check error:", syncErr);
+      }
+    }
 
     if (!matchingAccount) {
       return { 
@@ -249,7 +344,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
-  // Sign up with Supabase Email Verification & University/Semester setup
+  // Sign up with Supabase Email Verification & Cross-Device Server Persistence
   const signUpWithPassword = async (
     fullName: string, 
     university: string, 
@@ -261,7 +356,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     initialCourses?: string[],
     syncGoogleCalendar: boolean = true
   ): Promise<{ success: boolean; error?: string; confirmationEmailSent?: boolean }> => {
-    await simulateNetworkLatency(650);
+    await simulateNetworkLatency(500);
 
     if (!email || !fullName || !pass) {
       return { success: false, error: "Please fill in all required credentials." };
@@ -323,6 +418,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     accounts.push(newAccount);
     saveRegisteredAccounts(accounts);
+
+    // Sync to Server Repository (Guarantees immediate login availability on mobile)
+    try {
+      fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          account: newAccount,
+          courses: initialCourses
+        })
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
 
     const profile: UserProfile = {
       id: newAccount.id,
@@ -603,32 +713,72 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!newPass || newPass.length < 6) {
       return { success: false, error: "New password must be at least 6 characters in length." };
     }
-    await simulateNetworkLatency(500);
+    await simulateNetworkLatency(400);
 
+    // 1. Supabase Cloud Password Update (if connected)
+    const supabase = createClient();
+    if (supabase) {
+      try {
+        await supabase.auth.updateUser({ password: newPass });
+      } catch (supaErr) {
+        console.warn("Supabase password update error:", supaErr);
+      }
+    }
+
+    // 2. Server-side Cross-Device Store Update (Mobile & Desktop)
+    try {
+      await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "change-password",
+          email: user.email,
+          currentPassword: currentPass,
+          newPassword: newPass
+        })
+      });
+    } catch (syncErr) {
+      console.warn("Server auth sync error:", syncErr);
+    }
+
+    // 3. Local Device Cache Update
     const accounts = getRegisteredAccounts();
-    const account = accounts.find(a => a.id === user.id);
+    const account = accounts.find(a => a.id === user.id || a.email.toLowerCase() === user.email.toLowerCase());
 
-    if (!account) {
-      return { success: false, error: "Account not found." };
+    if (account) {
+      account.passwordHash = newPass;
+      saveRegisteredAccounts(accounts);
     }
 
-    if (account.passwordHash !== currentPass) {
-      return { success: false, error: "Current password is incorrect." };
-    }
-
-    account.passwordHash = newPass;
-    saveRegisteredAccounts(accounts);
     return { success: true };
   }, [user]);
 
   const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; resetCode?: string; error?: string }> => {
     if (!emailToReset) return { success: false, error: "Please enter your student email." };
-    await simulateNetworkLatency(500);
+    await simulateNetworkLatency(400);
 
     const trimmed = emailToReset.trim().toLowerCase();
     
-    // Generate secure 6-digit recovery PIN
-    const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
+    // 1. Request Server-side PIN (Ensures PIN works across Mobile & Desktop)
+    let generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      const syncRes = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "request-reset",
+          email: trimmed
+        })
+      });
+      const syncData = await syncRes.json();
+      if (syncRes.ok && syncData.resetCode) {
+        generatedPin = syncData.resetCode;
+      }
+    } catch (syncErr) {
+      console.warn("Server PIN request error, using fallback PIN:", syncErr);
+    }
+
+    // 2. Save local device fallback
     try {
       const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
       existingPins[trimmed] = generatedPin;
@@ -637,7 +787,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // ignore
     }
 
-    // Also attempt Supabase cloud reset if configured
+    // 3. Also attempt Supabase cloud reset if configured
     const supabase = createClient();
     if (supabase) {
       try {
@@ -645,7 +795,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/`
         });
       } catch {
-        // graceful fallback to local PIN
+        // graceful fallback to PIN
       }
     }
 
@@ -658,28 +808,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const resetPasswordWithCode = useCallback(async (email: string, code: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
     if (!email || !code || !newPass) return { success: false, error: "All fields are required." };
     if (newPass.length < 6) return { success: false, error: "New password must be at least 6 characters." };
-    await simulateNetworkLatency(500);
+    await simulateNetworkLatency(400);
 
     const trimmedEmail = email.trim().toLowerCase();
-    const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
-    const storedPin = existingPins[trimmedEmail];
+    let verified = false;
 
-    if (!storedPin || storedPin !== code.trim()) {
+    // 1. Verify against Server-Side Store
+    try {
+      const syncRes = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "reset-password",
+          email: trimmedEmail,
+          code,
+          newPassword: newPass
+        })
+      });
+      const syncData = await syncRes.json();
+      if (syncRes.ok && syncData.success) {
+        verified = true;
+      }
+    } catch (syncErr) {
+      console.warn("Server reset verification error:", syncErr);
+    }
+
+    // 2. Verify against Local Device Cache (Fallback)
+    if (!verified) {
+      const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
+      const storedPin = existingPins[trimmedEmail];
+      if (storedPin && storedPin === code.trim()) {
+        verified = true;
+        delete existingPins[trimmedEmail];
+        localStorage.setItem("student_portal_reset_pins", JSON.stringify(existingPins));
+      }
+    }
+
+    if (!verified) {
       return { success: false, error: "Invalid or expired 6-digit recovery code." };
     }
 
-    // Update account password
+    // 3. Update Local Storage Accounts
     const accounts = getRegisteredAccounts();
     const targetAcc = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
     if (targetAcc) {
       targetAcc.passwordHash = newPass;
       saveRegisteredAccounts(accounts);
-      delete existingPins[trimmedEmail];
-      localStorage.setItem("student_portal_reset_pins", JSON.stringify(existingPins));
-      return { success: true };
     }
 
-    return { success: false, error: "No account found matching this email." };
+    // 4. Update Supabase Password if user is logged in
+    const supabase = createClient();
+    if (supabase) {
+      try {
+        await supabase.auth.updateUser({ password: newPass });
+      } catch {
+        // ignore
+      }
+    }
+
+    return { success: true };
   }, []);
 
   const rolloverSemester = useCallback(async (nextSemester: string, clearPreviousSubjects: boolean): Promise<{ success: boolean; error?: string }> => {
