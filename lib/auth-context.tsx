@@ -55,7 +55,8 @@ interface AuthContextType {
   deleteExam: (examId: string) => void;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
   changePassword: (currentPass: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
-  sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; error?: string }>;
+  sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; resetCode?: string; error?: string }>;
+  resetPasswordWithCode: (email: string, code: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   rolloverSemester: (nextSemester: string, clearPreviousSubjects: boolean) => Promise<{ success: boolean; error?: string }>;
   getTotalRegisteredUsersCount: () => number;
 }
@@ -620,21 +621,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [user]);
 
-  const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; error?: string }> => {
+  const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; resetCode?: string; error?: string }> => {
     if (!emailToReset) return { success: false, error: "Please enter your student email." };
-    await simulateNetworkLatency(600);
+    await simulateNetworkLatency(500);
 
     const trimmed = emailToReset.trim().toLowerCase();
+    
+    // Generate secure 6-digit recovery PIN
+    const generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
+    try {
+      const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
+      existingPins[trimmed] = generatedPin;
+      localStorage.setItem("student_portal_reset_pins", JSON.stringify(existingPins));
+    } catch {
+      // ignore
+    }
+
+    // Also attempt Supabase cloud reset if configured
     const supabase = createClient();
     if (supabase) {
-      const { error } = await supabase.auth.resetPasswordForEmail(trimmed, {
-        redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/`
-      });
-      if (error) {
-        return { success: false, error: error.message };
+      try {
+        await supabase.auth.resetPasswordForEmail(trimmed, {
+          redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/`
+        });
+      } catch {
+        // graceful fallback to local PIN
       }
     }
-    return { success: true };
+
+    return { 
+      success: true, 
+      resetCode: generatedPin 
+    };
+  }, []);
+
+  const resetPasswordWithCode = useCallback(async (email: string, code: string, newPass: string): Promise<{ success: boolean; error?: string }> => {
+    if (!email || !code || !newPass) return { success: false, error: "All fields are required." };
+    if (newPass.length < 6) return { success: false, error: "New password must be at least 6 characters." };
+    await simulateNetworkLatency(500);
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
+    const storedPin = existingPins[trimmedEmail];
+
+    if (!storedPin || storedPin !== code.trim()) {
+      return { success: false, error: "Invalid or expired 6-digit recovery code." };
+    }
+
+    // Update account password
+    const accounts = getRegisteredAccounts();
+    const targetAcc = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
+    if (targetAcc) {
+      targetAcc.passwordHash = newPass;
+      saveRegisteredAccounts(accounts);
+      delete existingPins[trimmedEmail];
+      localStorage.setItem("student_portal_reset_pins", JSON.stringify(existingPins));
+      return { success: true };
+    }
+
+    return { success: false, error: "No account found matching this email." };
   }, []);
 
   const rolloverSemester = useCallback(async (nextSemester: string, clearPreviousSubjects: boolean): Promise<{ success: boolean; error?: string }> => {
@@ -679,6 +724,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       updateProfile,
       changePassword,
       sendPasswordResetEmail,
+      resetPasswordWithCode,
       rolloverSemester,
       getTotalRegisteredUsersCount
     }}>

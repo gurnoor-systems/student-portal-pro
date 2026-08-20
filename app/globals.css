@@ -2,38 +2,38 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Tesla-Inspired Minimalist Light Mode & Luxury Studio Dark Mode Tokens */
+/* Sleek Slate-Grey & Subtle White Light Mode / Luxury OLED Dark Mode Tokens */
 :root {
-  --primary: #3e6ae1;
-  --primary-active: #3457d5;
-  --primary-disabled: #d6d6d6;
-  --ink: #171a20;
-  --body: #393c41;
-  --body-strong: #171a20;
-  --muted: #5c5e62;
-  --muted-soft: #8e9095;
-  --hairline: #e5e7eb;
-  --hairline-strong: #d1d5db;
-  --canvas: #ffffff;
-  --surface-soft: #f4f4f6;
+  --primary: #2563eb;
+  --primary-active: #1d4ed8;
+  --primary-disabled: #cbd5e1;
+  --ink: #0f172a;
+  --body: #334155;
+  --body-strong: #0f172a;
+  --muted: #64748b;
+  --muted-soft: #94a3b8;
+  --hairline: #e2e8f0;
+  --hairline-strong: #cbd5e1;
+  --canvas: #f8fafc;
+  --surface-soft: #f1f5f9;
   --surface-card: #ffffff;
-  --surface-strong: #ebecef;
-  --surface-dark: #ffffff;
-  --surface-dark-elevated: #f4f4f6;
-  --nav-bg: #ffffff;
-  --nav-ink: #171a20;
-  --nav-ink-soft: #393c41;
-  --hero-bg: #ffffff;
-  --hero-ink: #171a20;
+  --surface-strong: #e2e8f0;
+  --surface-dark: #0f172a;
+  --surface-dark-elevated: #1e293b;
+  --nav-bg: rgba(255, 255, 255, 0.95);
+  --nav-ink: #0f172a;
+  --nav-ink-soft: #475569;
+  --hero-bg: #f8fafc;
+  --hero-ink: #0f172a;
   --hero-card-bg: #ffffff;
   --hero-card-border: #e2e8f0;
   --hero-card-inner: #f8fafc;
   --on-primary: #ffffff;
-  --on-dark: #171a20;
-  --on-dark-soft: #5c5e62;
-  --m-blue-light: #3e6ae1;
-  --m-blue-dark: #1c69d4;
-  --m-red: #e22718;
+  --on-dark: #0f172a;
+  --on-dark-soft: #64748b;
+  --m-blue-light: #2563eb;
+  --m-blue-dark: #1d4ed8;
+  --m-red: #ef4444;
 }
 
 .dark {

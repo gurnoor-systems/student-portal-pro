@@ -69,7 +69,8 @@ const SUGGESTED_DEGREES = [
   "B.A. (Bachelor of Arts)",
   "M.S. / M.Sc (Master of Science)",
   "MBA (Master of Business Admin)",
-  "Ph.D. (Doctorate)"
+  "Ph.D. (Doctorate)",
+  "Other (Custom Degree / Program)..."
 ];
 
 export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalProps) {
@@ -87,6 +88,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   // Campus, Degree & Semester States
   const [university, setUniversity] = useState("University of Waterloo");
   const [degree, setDegree] = useState("B.Tech (Bachelor of Technology)");
+  const [customDegreeText, setCustomDegreeText] = useState("");
   const [semester, setSemester] = useState("Fall 2026");
   const [major, setMajor] = useState("Computer Science");
   const [selectedCourses, setSelectedCourses] = useState<string[]>([
@@ -147,10 +149,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const handleFinalSignUp = async () => {
     setError(null);
     setLoading(true);
+    const finalDegree = degree === "Other (Custom Degree / Program)..."
+      ? (customDegreeText.trim() || "Higher Education")
+      : degree;
+
     const res = await signUpWithPassword(
       fullName,
       university || "University of Waterloo", 
-      degree || "B.Tech (Bachelor of Technology)",
+      finalDegree || "B.Tech (Bachelor of Technology)",
       semester || "Fall 2026",
       major || "Computer Science", 
       email, 
@@ -657,6 +663,22 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 ))}
               </select>
             </div>
+
+            {degree === "Other (Custom Degree / Program)..." && (
+              <div className="space-y-1.5 animate-in fade-in">
+                <label className="block text-[11px] font-mono uppercase text-[#d4af37]">
+                  ENTER CUSTOM DEGREE / PROGRAM
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={customDegreeText}
+                  onChange={(e) => setCustomDegreeText(e.target.value)}
+                  placeholder="e.g. B.S. in Data Science, Integrated M.Tech..."
+                  className="w-full h-10 px-3 bg-[#090d12] border border-[#d4af37]/50 text-xs text-white focus:border-[#d4af37] outline-none rounded-xl"
+                />
+              </div>
+            )}
 
             {/* Semester / Term Selection */}
             <div className="space-y-1.5">

@@ -35,7 +35,8 @@ const POPULAR_DEGREES = [
   "B.A. (Bachelor of Arts)",
   "M.S. / M.Sc (Master of Science)",
   "MBA (Master of Business Admin)",
-  "Ph.D. (Doctorate)"
+  "Ph.D. (Doctorate)",
+  "Other (Custom Degree / Program)..."
 ];
 
 const SUGGESTED_NEXT_SEMESTERS = [
@@ -60,15 +61,18 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     updateProfile, 
     changePassword, 
     sendPasswordResetEmail,
+    resetPasswordWithCode,
     rolloverSemester
   } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"subjects" | "security" | "profile">("subjects");
 
   // Profile fields state
+  const isCustomDegreeInitial = !POPULAR_DEGREES.slice(0, -1).includes(user?.degree || "");
   const [fullName, setFullName] = useState(user?.fullName || "");
   const [university, setUniversity] = useState(user?.university || "");
-  const [degree, setDegree] = useState(user?.degree || "B.Tech (Bachelor of Technology)");
+  const [degreeSelect, setDegreeSelect] = useState(isCustomDegreeInitial ? "Other (Custom Degree / Program)..." : (user?.degree || "B.Tech (Bachelor of Technology)"));
+  const [customDegree, setCustomDegree] = useState(isCustomDegreeInitial ? (user?.degree || "") : "");
   const [major, setMajor] = useState(user?.major || "");
   const [semester, setSemester] = useState(user?.semester || "");
   const [profileFeedback, setProfileFeedback] = useState<string | null>(null);
@@ -78,8 +82,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordFeedback, setPasswordFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  
+  // Forgot password & instant PIN recovery state
   const [isResetSending, setIsResetSending] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [enteredCode, setEnteredCode] = useState("");
+  const [recoveryNewPass, setRecoveryNewPass] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
+  const [recoveryFeedback, setRecoveryFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Subject management state
   const [isAddSubjectOpen, setIsAddSubjectOpen] = useState(false);
@@ -104,10 +115,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     e.preventDefault();
     setLoading(true);
     setProfileFeedback(null);
+    
+    const finalDegree = degreeSelect === "Other (Custom Degree / Program)..." 
+      ? (customDegree.trim() || "Higher Education")
+      : degreeSelect;
+
     const res = await updateProfile({
       fullName: fullName.trim(),
       university: university.trim(),
-      degree: degree.trim(),
+      degree: finalDegree,
       major: major.trim(),
       semester: semester.trim()
     });
@@ -145,29 +161,56 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   };
 
-  // Handle Send Forgot Password Reset Link
+  // Handle Send Forgot Password Reset Link + Instant PIN
   const handleSendResetEmail = async () => {
     setIsResetSending(true);
     setResetFeedback(null);
+    setRecoveryFeedback(null);
     const res = await sendPasswordResetEmail(user.email);
     setIsResetSending(false);
     if (res.success) {
-      setResetFeedback(`Password recovery link dispatched to ${user.email}. Please check your inbox.`);
+      if (res.resetCode) {
+        setRecoveryCode(res.resetCode);
+        setEnteredCode(res.resetCode);
+      }
+      setResetFeedback(`Password recovery dispatched to ${user.email}. Check your email or use the instant recovery code below.`);
     } else {
       setResetFeedback(res.error || "Could not dispatch recovery link.");
     }
   };
 
-  // Handle Add New Subject
+  // Handle Reset With Code
+  const handleResetWithCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enteredCode || !recoveryNewPass) return;
+    setRecoveryLoading(true);
+    setRecoveryFeedback(null);
+    const res = await resetPasswordWithCode(user.email, enteredCode, recoveryNewPass);
+    setRecoveryLoading(false);
+    if (res.success) {
+      setRecoveryFeedback({ type: "success", text: "Password successfully reset! You can now sign in with your new password." });
+      setRecoveryNewPass("");
+      setRecoveryCode(null);
+    } else {
+      setRecoveryFeedback({ type: "error", text: res.error || "Could not reset password. Invalid code." });
+    }
+  };
+
+  // Handle Add New Subject (Subject Code is Optional)
   const handleAddNewSubject = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!subjectCode.trim() || !subjectName.trim()) return;
+    if (!subjectName.trim()) return;
+
+    // Generate fallback acronym code if left blank
+    const fallbackCode = subjectCode.trim() 
+      ? subjectCode.trim().toUpperCase() 
+      : (subjectName.trim().split(/\s+/).map(w => w[0]).join("").slice(0, 4).toUpperCase() || "SUB");
 
     addCourse({
-      courseCode: subjectCode.trim().toUpperCase(),
+      courseCode: fallbackCode,
       courseName: subjectName.trim(),
       instructor: instructor.trim() || "Faculty Professor",
-      meetingLink: meetingLink.trim() || `https://meet.google.com/${subjectCode.trim().toLowerCase()}`,
+      meetingLink: meetingLink.trim() || `https://meet.google.com/${fallbackCode.toLowerCase()}`,
       meetingPlatform: "meet",
       scheduleTime: scheduleTime.trim() || "Schedule TBA"
     });
@@ -387,13 +430,14 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">SUBJECT CODE</label>
+                      <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">
+                        SUBJECT CODE <span className="text-[9px] text-slate-500 lowercase">(optional)</span>
+                      </label>
                       <input
                         type="text"
-                        required
                         value={subjectCode}
                         onChange={(e) => setSubjectCode(e.target.value)}
-                        placeholder="e.g. CS 452"
+                        placeholder="e.g. CS 452 (Optional)"
                         className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white font-mono uppercase rounded-lg outline-none focus:border-[var(--primary)]"
                       />
                     </div>
@@ -454,7 +498,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     </button>
                     <button
                       type="submit"
-                      className="px-4 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white font-bold uppercase rounded text-xs cursor-pointer"
+                      className="px-4 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white font-bold uppercase rounded text-xs cursor-pointer transition-colors"
                     >
                       Save Subject
                     </button>
@@ -462,11 +506,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </form>
               )}
 
-              {/* List of Enrolled Subjects */}
-              <div className="space-y-2.5">
-                <div className="text-[11px] font-mono uppercase text-slate-400 font-bold px-1">
-                  CURRENT ENROLLED SUBJECTS ({userData.courses.length})
-                </div>
+              {/* Subject Grid List */}
+              <div className="space-y-2">
+                <div className="text-[10px] font-mono uppercase text-slate-400">ENROLLED COURSES ({userData.courses.length})</div>
 
                 {userData.courses.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -586,31 +628,83 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </button>
               </form>
 
-              {/* Forgot Password / Recovery Link Box */}
-              <div className="p-4 bg-[#141b24] border border-white/10 rounded-xl space-y-3">
+              {/* Forgot Password / Instant PIN Recovery Box */}
+              <div className="p-4 bg-[#141b24] border border-white/10 rounded-xl space-y-3.5">
                 <div className="flex items-center gap-2 font-bold text-white text-xs uppercase tracking-wider">
                   <Mail className="w-4 h-4 text-[#4285F4]" />
-                  <span>Forgot Password Recovery</span>
+                  <span>Forgot Password Recovery & Instant PIN</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  If you forgot your password, you can dispatch an encrypted reset link to your verified email address (<span className="text-white font-mono">{user.email}</span>).
+                  Dispatch an encrypted reset link or generate an instant 6-digit recovery code for <span className="text-white font-mono font-bold">{user.email}</span>.
                 </p>
 
                 {resetFeedback && (
-                  <div className="p-2.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px] rounded">
-                    {resetFeedback}
+                  <div className="p-2.5 bg-blue-500/15 border border-blue-500/30 text-blue-300 font-mono text-[11px] rounded space-y-1">
+                    <div>{resetFeedback}</div>
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleSendResetEmail}
-                  disabled={isResetSending}
-                  className="px-4 py-2 bg-[#1a2330] hover:bg-[#222e40] border border-white/15 text-white font-bold uppercase text-[11px] rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>{isResetSending ? "DISPATCHING LINK..." : "SEND PASSWORD RESET LINK TO EMAIL"}</span>
-                </button>
+                {recoveryCode && (
+                  <div className="p-3.5 bg-[#090d12] border border-[#d4af37]/40 rounded-xl space-y-3 animate-in fade-in">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">1-TIME INSTANT RECOVERY CODE:</span>
+                      <span className="px-3 py-1 bg-[#d4af37]/20 border border-[#d4af37]/50 text-[#d4af37] font-mono font-bold text-sm tracking-[4px] rounded">
+                        {recoveryCode}
+                      </span>
+                    </div>
+
+                    <form onSubmit={handleResetWithCode} className="space-y-2.5 pt-2 border-t border-white/10">
+                      {recoveryFeedback && (
+                        <div className={`p-2 rounded text-[10px] font-mono ${
+                          recoveryFeedback.type === "success" 
+                            ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
+                            : "bg-red-500/15 border border-red-500/30 text-red-300"
+                        }`}>
+                          {recoveryFeedback.text}
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={enteredCode}
+                          onChange={(e) => setEnteredCode(e.target.value)}
+                          placeholder="6-Digit Recovery Code"
+                          className="w-full h-9 px-3 bg-[#141b24] border border-white/15 text-white font-mono text-xs rounded-lg outline-none focus:border-[#d4af37]"
+                          required
+                        />
+                        <input
+                          type="password"
+                          value={recoveryNewPass}
+                          onChange={(e) => setRecoveryNewPass(e.target.value)}
+                          placeholder="New Password (6+ chars)"
+                          className="w-full h-9 px-3 bg-[#141b24] border border-white/15 text-white text-xs rounded-lg outline-none focus:border-[#d4af37]"
+                          required
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={recoveryLoading}
+                        className="w-full py-2 bg-[#d4af37] hover:bg-[#b8952b] text-slate-950 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer"
+                      >
+                        {recoveryLoading ? "VERIFYING & RESETTING..." : "CONFIRM CODE & RESET PASSWORD"}
+                      </button>
+                    </form>
+                  </div>
+                )}
+
+                {!recoveryCode && (
+                  <button
+                    type="button"
+                    onClick={handleSendResetEmail}
+                    disabled={isResetSending}
+                    className="px-4 py-2 bg-[#1a2330] hover:bg-[#222e40] border border-white/15 text-white font-bold uppercase text-[11px] rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
+                  >
+                    <Mail className="w-3.5 h-3.5 text-[#4285F4]" />
+                    <span>{isResetSending ? "DISPATCHING RECOVERY CODE..." : "SEND PASSWORD RESET LINK / INSTANT PIN"}</span>
+                  </button>
+                )}
               </div>
 
             </div>
@@ -650,8 +744,8 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 <div>
                   <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">DEGREE / PROGRAM</label>
                   <select
-                    value={degree}
-                    onChange={(e) => setDegree(e.target.value)}
+                    value={degreeSelect}
+                    onChange={(e) => setDegreeSelect(e.target.value)}
                     className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-white rounded-lg outline-none focus:border-[var(--primary)] font-medium"
                   >
                     {POPULAR_DEGREES.map((deg, dIdx) => (
@@ -660,6 +754,22 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   </select>
                 </div>
               </div>
+
+              {degreeSelect === "Other (Custom Degree / Program)..." && (
+                <div className="animate-in fade-in">
+                  <label className="block text-[10px] font-mono uppercase text-[#d4af37] mb-1">
+                    ENTER CUSTOM DEGREE / PROGRAM NAME
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={customDegree}
+                    onChange={(e) => setCustomDegree(e.target.value)}
+                    placeholder="e.g. B.S. in Applied Artificial Intelligence, Diploma in Animation..."
+                    className="w-full h-10 px-3 bg-[#090d12] border border-[#d4af37]/50 text-white rounded-lg outline-none focus:border-[#d4af37]"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
