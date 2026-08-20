@@ -1,0 +1,171 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Tesla-Inspired Minimalist Light Mode & Luxury Studio Dark Mode Tokens */
+:root {
+  --primary: #3e6ae1;
+  --primary-active: #3457d5;
+  --primary-disabled: #d6d6d6;
+  --ink: #171a20;
+  --body: #393c41;
+  --body-strong: #171a20;
+  --muted: #5c5e62;
+  --muted-soft: #8e9095;
+  --hairline: #e5e7eb;
+  --hairline-strong: #d1d5db;
+  --canvas: #ffffff;
+  --surface-soft: #f4f4f6;
+  --surface-card: #ffffff;
+  --surface-strong: #ebecef;
+  --surface-dark: #ffffff;
+  --surface-dark-elevated: #f4f4f6;
+  --nav-bg: #ffffff;
+  --nav-ink: #171a20;
+  --nav-ink-soft: #393c41;
+  --hero-bg: #ffffff;
+  --hero-ink: #171a20;
+  --hero-card-bg: #ffffff;
+  --hero-card-border: #e2e8f0;
+  --hero-card-inner: #f8fafc;
+  --on-primary: #ffffff;
+  --on-dark: #171a20;
+  --on-dark-soft: #5c5e62;
+  --m-blue-light: #3e6ae1;
+  --m-blue-dark: #1c69d4;
+  --m-red: #e22718;
+}
+
+.dark {
+  --canvas: #090d12;
+  --surface-soft: #121822;
+  --surface-card: #101620;
+  --surface-strong: #1a222e;
+  --surface-dark: #0e141c;
+  --surface-dark-elevated: #16202c;
+  --nav-bg: #0e141c;
+  --nav-ink: #ffffff;
+  --nav-ink-soft: #94a3b8;
+  --hero-bg: #090d12;
+  --hero-ink: #ffffff;
+  --hero-card-bg: #111720;
+  --hero-card-border: rgba(255,255,255,0.12);
+  --hero-card-inner: #090d12;
+  --ink: #ffffff;
+  --body: #cbd5e1;
+  --body-strong: #ffffff;
+  --muted: #94a3b8;
+  --muted-soft: #64748b;
+  --hairline: #1e293b;
+  --hairline-strong: #334155;
+  --primary: #1c69d4;
+  --primary-active: #2b7cf0;
+  --on-primary: #ffffff;
+  --on-dark: #ffffff;
+  --on-dark-soft: #94a3b8;
+  --m-blue-light: #0066b1;
+  --m-blue-dark: #1c69d4;
+  --m-red: #e22718;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--canvas);
+  color: var(--body);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  letter-spacing: 0;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* Primary Button */
+.bmw-btn-primary {
+  background-color: var(--primary);
+  color: var(--on-primary);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 12px 28px;
+  height: 46px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+  border: none;
+}
+
+.bmw-btn-primary:hover {
+  background-color: var(--primary-active);
+}
+
+/* Secondary Button Light */
+.bmw-btn-secondary {
+  background-color: var(--surface-soft);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 12px 28px;
+  height: 46px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--hairline);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.bmw-btn-secondary:hover {
+  border-color: var(--ink);
+}
+
+/* Secondary Button Dark */
+.bmw-btn-secondary-dark {
+  background-color: transparent;
+  color: var(--on-dark);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 12px 28px;
+  height: 46px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--hairline);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.bmw-btn-secondary-dark:hover {
+  border-color: var(--on-dark);
+}
+
+/* Minimalist Card */
+.bmw-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--hairline);
+  padding: 24px;
+  transition: all 0.2s ease;
+}
+
+.bmw-card:hover {
+  border-color: var(--hairline-strong);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+}
+
+/* Typography styles */
+.font-display {
+  font-family: inherit;
+  letter-spacing: 0.5px;
+}
