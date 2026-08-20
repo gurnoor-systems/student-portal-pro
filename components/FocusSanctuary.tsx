@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useAuth, TaskItem } from "@/lib/auth-context";
 import { useTheme } from "@/lib/theme-context";
 import { 
   soundscapeEngine, 
-  SoundscapeTrackId, 
-  SOUND_TRACK_DEFINITIONS,
-  SoundTrackState
+  SoundscapeType, 
+  SOUNDSCAPE_OPTIONS 
 } from "@/lib/soundscapes";
 import Logo from "@/components/Logo";
 import { 
@@ -30,12 +29,10 @@ import {
   Sun,
   Moon,
   ExternalLink,
-  Minimize2,
-  Maximize2,
-  Sliders,
+  Link as LinkIcon,
   Zap,
   Leaf,
-  Layers,
+  Sliders,
   Award
 } from "lucide-react";
 
@@ -45,40 +42,16 @@ interface FocusSanctuaryProps {
   onTaskCompleted?: (taskId: string) => void;
 }
 
-const SMART_PRESETS = [
-  {
-    id: "deep_code",
-    name: "⚡ 40Hz Deep Code",
-    desc: "40Hz Gamma + Brown Noise",
-    tracks: { brown: 0.6, gamma40: 0.45, rain: 0, green: 0, alpha10: 0, theta6: 0, cafe: 0 } as Record<SoundscapeTrackId, number>
-  },
-  {
-    id: "rainy_night",
-    name: "🌧️ Rainy Midnight",
-    desc: "Gentle Rain + 10Hz Alpha Waves",
-    tracks: { rain: 0.7, alpha10: 0.35, brown: 0.2, green: 0, gamma40: 0, theta6: 0, cafe: 0 } as Record<SoundscapeTrackId, number>
-  },
-  {
-    id: "zen_forest",
-    name: "🌲 Zen Forest Library",
-    desc: "Green Noise + 10Hz Alpha",
-    tracks: { green: 0.65, alpha10: 0.4, rain: 0.15, brown: 0, gamma40: 0, theta6: 0, cafe: 0 } as Record<SoundscapeTrackId, number>
-  },
-  {
-    id: "cafe_flow",
-    name: "☕ Coffeehouse Flow",
-    desc: "Warm Cafe + Light Rain",
-    tracks: { cafe: 0.6, rain: 0.35, brown: 0, green: 0, gamma40: 0, alpha10: 0, theta6: 0 } as Record<SoundscapeTrackId, number>
-  }
+const MUSIC_PRESETS = [
+  { id: "lofi", name: "Lofi Study Beats", url: "https://open.spotify.com/embed/playlist/0vvXsWCC9xrXsKd4FyS8kM" },
+  { id: "jazz", name: "Rainy Jazz Cafe", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXbITWG1ZJKYt" },
+  { id: "synth", name: "Synthwave Focus", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXdLEN7aqioXM" },
+  { id: "lofigirl", name: "Lofi Girl Live", url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1" }
 ];
 
 export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: FocusSanctuaryProps) {
-  const { user, getUserData } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  const userData = getUserData();
-
-  // Floating PiP Mode
-  const [isPipMode, setIsPipMode] = useState<boolean>(false);
+  const { user, userData } = useAuth();
+  const { theme } = useTheme();
 
   // Timer modes: 'pomodoro' (25m), 'deep' (50m), 'flowtime' (stopwatch), 'custom' (slider)
   const [timerMode, setTimerMode] = useState<"pomodoro" | "deep" | "flowtime" | "custom">("pomodoro");
@@ -91,30 +64,26 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   // Attached Task
   const [attachedTaskId, setAttachedTaskId] = useState<string>(userData.tasks[0]?.id || "");
 
-  // Multi-Track Audio System
-  const [masterVolume, setMasterVolume] = useState<number>(0.6);
-  const [trackStates, setTrackStates] = useState<Record<SoundscapeTrackId, { active: boolean; volume: number }>>({
-    rain: { active: false, volume: 0.6 },
-    brown: { active: false, volume: 0.5 },
-    green: { active: false, volume: 0.5 },
-    gamma40: { active: false, volume: 0.45 },
-    alpha10: { active: false, volume: 0.4 },
-    theta6: { active: false, volume: 0.35 },
-    cafe: { active: false, volume: 0.4 }
-  });
+  // Audio system: 'none' | 'rain' | 'brown' | 'green' | 'gamma' | 'alpha' | 'cafe' | 'music_embed'
+  const [audioType, setAudioType] = useState<SoundscapeType | "music_embed">("none");
+  const [volume, setVolume] = useState<number>(0.5);
+  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("lofi");
+  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://open.spotify.com/embed/playlist/0vvXsWCC9xrXsKd4FyS8kM");
+  const [isCustomUrlInputOpen, setIsCustomUrlInputOpen] = useState<boolean>(false);
+  const [inputUrl, setInputUrl] = useState<string>("");
 
-  // Completion / Auto-Log Feedback
+  // Completion state
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
-  const [sessionFeedback, setSessionFeedback] = useState<string | null>(null);
+  const [loggedMinutes, setLoggedMinutes] = useState<number>(0);
 
-  // Set default task
+  // Set default attached task when userData loads
   useEffect(() => {
     if (userData.tasks.length > 0 && !attachedTaskId) {
       setAttachedTaskId(userData.tasks[0].id);
     }
   }, [userData.tasks, attachedTaskId]);
 
-  // Handle Timer Duration Changes
+  // Handle timer duration changes
   useEffect(() => {
     if (!isRunning) {
       if (timerMode === "pomodoro") {
@@ -132,7 +101,7 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     }
   }, [timerMode, customMinutes, isRunning]);
 
-  // Main Timer Countdown Loop
+  // Main countdown loop
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
@@ -157,457 +126,626 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     };
   }, [isRunning, timerMode]);
 
-  // Auto-Log Completed Session to Analytics & Study Streak
+  // Handle session completion & streak auto-log
   const handleSessionComplete = () => {
     setIsRunning(false);
-    setIsCompleted(true);
-    soundscapeEngine.stopAll();
+    soundscapeEngine.stop();
+    soundscapeEngine.playCompletionChime(); // Play soothing 528Hz crystal bell chime
 
-    const elapsedMinutes = timerMode === "flowtime" 
+    const elapsed = timerMode === "flowtime" 
       ? Math.max(1, Math.round(flowtimeSeconds / 60))
       : Math.round(selectedDuration / 60);
 
-    logSessionToAnalytics(elapsedMinutes);
-  };
+    setLoggedMinutes(elapsed);
+    setIsCompleted(true);
 
-  const logSessionToAnalytics = (minutes: number) => {
-    if (!user) return;
-    try {
-      const storageKey = `student_portal_user_${user.id}_focus_history`;
-      const raw = localStorage.getItem(storageKey);
-      const history = raw ? JSON.parse(raw) : [];
-      const newEntry = {
-        id: `focus_${Date.now()}`,
-        date: new Date().toISOString(),
-        minutes,
-        taskId: attachedTaskId,
-        taskTitle: attachedTask?.title || "Deep Focus Session"
-      };
-      history.push(newEntry);
-      localStorage.setItem(storageKey, JSON.stringify(history));
-
-      setSessionFeedback(`Logged ${minutes}m focus session to study streak!`);
-    } catch {
-      // ignore
+    // Auto-log to analytics history
+    if (user) {
+      try {
+        const storageKey = `student_portal_user_${user.id}_focus_history`;
+        const raw = localStorage.getItem(storageKey);
+        const history = raw ? JSON.parse(raw) : [];
+        const newEntry = {
+          id: `focus_${Date.now()}`,
+          date: new Date().toISOString(),
+          minutes: elapsed,
+          taskId: attachedTaskId,
+          taskTitle: currentTask?.title || "Deep Focus Block"
+        };
+        history.push(newEntry);
+        localStorage.setItem(storageKey, JSON.stringify(history));
+      } catch {
+        // ignore
+      }
     }
   };
 
-  // Sound Track Toggles & Volume
-  const handleToggleTrack = (id: SoundscapeTrackId) => {
-    const current = trackStates[id];
-    const willBeActive = !current.active;
-
-    if (willBeActive) {
-      soundscapeEngine.startTrack(id, current.volume);
+  // Soundscape selector
+  const handleSelectSoundscape = (type: SoundscapeType) => {
+    if (type === audioType) {
+      // Toggle off
+      setAudioType("none");
+      soundscapeEngine.stop();
     } else {
-      soundscapeEngine.stopTrack(id);
+      setAudioType(type);
+      if (type === "none") {
+        soundscapeEngine.stop();
+      } else {
+        soundscapeEngine.play(type, volume);
+      }
+    }
+  };
+
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+    soundscapeEngine.setVolume(newVol);
+  };
+
+  const handleSelectPresetMusic = (presetId: string) => {
+    const preset = MUSIC_PRESETS.find(p => p.id === presetId);
+    if (preset) {
+      soundscapeEngine.stop();
+      setAudioType("music_embed");
+      setSelectedMusicPreset(presetId);
+      setCustomEmbedUrl(preset.url);
+    }
+  };
+
+  const handleSaveCustomEmbed = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputUrl.trim()) return;
+
+    soundscapeEngine.stop();
+    let url = inputUrl.trim();
+
+    // Convert Spotify track/playlist links to embed format
+    if (url.includes("open.spotify.com") && !url.includes("/embed/")) {
+      url = url.replace("open.spotify.com/", "open.spotify.com/embed/");
+    }
+    // Convert YouTube links to embed format
+    if (url.includes("youtube.com/watch?v=")) {
+      const v = url.split("v=")[1]?.split("&")[0];
+      url = `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
+    } else if (url.includes("youtu.be/")) {
+      const v = url.split("youtu.be/")[1]?.split("?")[0];
+      url = `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
     }
 
-    setTrackStates(prev => ({
-      ...prev,
-      [id]: { ...prev[id], active: willBeActive }
-    }));
+    setCustomEmbedUrl(url);
+    setAudioType("music_embed");
+    setSelectedMusicPreset("custom");
+    setIsCustomUrlInputOpen(false);
+    setInputUrl("");
   };
 
-  const handleTrackVolumeChange = (id: SoundscapeTrackId, newVol: number) => {
-    soundscapeEngine.setTrackVolume(id, newVol);
-    setTrackStates(prev => ({
-      ...prev,
-      [id]: { ...prev[id], volume: newVol }
-    }));
+  const handleReset = () => {
+    setIsRunning(false);
+    setTimeLeft(selectedDuration);
+    setFlowtimeSeconds(0);
   };
 
-  const handleApplyPreset = (preset: typeof SMART_PRESETS[0]) => {
-    soundscapeEngine.applyPreset(preset.tracks);
-
-    const nextStates = { ...trackStates };
-    (Object.keys(preset.tracks) as SoundscapeTrackId[]).forEach(id => {
-      const vol = preset.tracks[id];
-      nextStates[id] = {
-        active: vol > 0,
-        volume: vol > 0 ? vol : nextStates[id].volume
-      };
-    });
-    setTrackStates(nextStates);
+  const handleExitSanctuary = () => {
+    soundscapeEngine.stop();
+    setIsRunning(false);
+    onClose();
   };
 
-  const handleMasterVolumeChange = (newVol: number) => {
-    setMasterVolume(newVol);
-    soundscapeEngine.setMasterVolume(newVol);
+  const handleMarkTaskDone = () => {
+    if (attachedTaskId && onTaskCompleted) {
+      onTaskCompleted(attachedTaskId);
+    }
+    setIsCompleted(false);
+    handleReset();
   };
 
-  const handleStopAllAudio = () => {
-    soundscapeEngine.stopAll();
-    setTrackStates(prev => {
-      const next = { ...prev };
-      Object.keys(next).forEach(k => {
-        next[k as SoundscapeTrackId].active = false;
-      });
-      return next;
-    });
-  };
+  const currentTask = userData.tasks.find(t => t.id === attachedTaskId);
 
-  const attachedTask = userData.tasks.find(t => t.id === attachedTaskId);
+  // SVG Circular Ring Calculations
+  const radius = 135;
+  const circumference = 2 * Math.PI * radius;
+  const progressRatio = timerMode === "flowtime" 
+    ? 1 
+    : Math.max(0, Math.min(1, timeLeft / selectedDuration));
+  const strokeDashoffset = circumference * (1 - progressRatio);
 
-  // Format MM:SS
+  // Time formatter
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Cleanup audio on modal close
-  const handleExitSanctuary = () => {
-    soundscapeEngine.stopAll();
-    setIsRunning(false);
-    setIsPipMode(false);
-    onClose();
-  };
-
   if (!isOpen) return null;
 
-  // =========================================================================
-  // 1. MINI FLOATING PICTURE-IN-PICTURE (PiP) WIDGET
-  // =========================================================================
-  if (isPipMode) {
-    return (
-      <aside 
-        aria-label="Floating Focus Timer"
-        className="fixed bottom-6 right-6 z-50 bg-[#090d12]/95 border border-[var(--primary)]/60 text-white rounded-2xl shadow-2xl p-3.5 flex items-center gap-3.5 backdrop-blur-md animate-in slide-in-from-bottom-5 duration-200"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="w-2.5 h-2.5 rounded-full bg-[var(--primary)] animate-pulse" />
-          <div>
-            <div className="text-sm font-mono font-bold tracking-wider text-white">
-              {timerMode === "flowtime" ? formatTime(flowtimeSeconds) : formatTime(timeLeft)}
-            </div>
-            <div className="text-[10px] text-slate-400 font-medium truncate max-w-[130px]">
-              {attachedTask?.title || "Deep Focus"}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1.5 border-l border-white/10 pl-2.5">
-          <button
-            onClick={() => setIsRunning(!isRunning)}
-            className="p-2 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white rounded-lg cursor-pointer"
-            title={isRunning ? "Pause Timer" : "Start Timer"}
-          >
-            {isRunning ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-          </button>
-
-          <button
-            onClick={() => setIsPipMode(false)}
-            className="p-2 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-lg cursor-pointer transition-colors"
-            title="Expand to Fullscreen Focus Room"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={handleExitSanctuary}
-            className="p-2 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-lg cursor-pointer transition-colors"
-            title="Close Focus Room"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
-  // =========================================================================
-  // 2. FULLSCREEN FOCUS SANCTUARY ROOM
-  // =========================================================================
-  const progressPercent = timerMode === "flowtime" 
-    ? 100 
-    : Math.round(((selectedDuration - timeLeft) / selectedDuration) * 100);
-
   return (
-    <div className="fixed inset-0 z-50 bg-[#090d12] text-white flex flex-col justify-between overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-[#080d14] text-white flex flex-col justify-between overflow-y-auto p-4 sm:p-8 animate-in fade-in duration-200">
       
-      {/* Top Header Bar */}
-      <header className="p-4 sm:p-6 border-b border-white/10 flex items-center justify-between">
+      {/* Top Header */}
+      <header className="flex items-center justify-between max-w-7xl mx-auto w-full pb-4">
         <div className="flex items-center gap-3">
-          <Logo size={24} variant="gold" />
+          <Logo size={26} variant="gold" />
           <div>
             <div className="text-[10px] font-mono tracking-[2px] uppercase text-[#d4af37] font-bold">
-              FOCUS ROOM PRO
+              FOCUS IMMERSION SANCTUARY
             </div>
-            <h1 className="text-sm font-bold text-white tracking-wide">
-              {attachedTask ? attachedTask.title : "Deep Work & Active Recall Sanctuary"}
+            <h1 className="text-xs font-mono text-slate-400">
+              Zero-Distraction Flow State & Scientific Audio
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* PiP Minimize Button */}
-          <button
-            onClick={() => setIsPipMode(true)}
-            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-            title="Minimize into corner Floating Pill"
-          >
-            <Minimize2 className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">PiP Mode</span>
-          </button>
-
-          {/* Close Sanctuary */}
-          <button
-            onClick={handleExitSanctuary}
-            className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors cursor-pointer"
-            aria-label="Exit Focus Room"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        <button
+          onClick={handleExitSanctuary}
+          className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors cursor-pointer"
+          aria-label="Close Focus Room"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </header>
 
-      {/* Main Focus Center */}
-      <main className="flex-1 flex flex-col items-center justify-center p-6 max-w-4xl mx-auto w-full space-y-8">
-        
-        {/* Timer Mode Selectors */}
-        <nav aria-label="Focus Modes" className="flex flex-wrap items-center justify-center gap-2 bg-[#121822] p-1.5 rounded-xl border border-white/10">
-          <button
-            onClick={() => { setTimerMode("pomodoro"); setIsRunning(false); }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-              timerMode === "pomodoro" ? "bg-[var(--primary)] text-white shadow-md" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            POMODORO (25M)
-          </button>
-
-          <button
-            onClick={() => { setTimerMode("deep"); setIsRunning(false); }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-              timerMode === "deep" ? "bg-[var(--primary)] text-white shadow-md" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            DEEP WORK (50M)
-          </button>
-
-          <button
-            onClick={() => { setTimerMode("flowtime"); setIsRunning(false); }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-              timerMode === "flowtime" ? "bg-[var(--primary)] text-white shadow-md" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            FLOWTIME (STOPWATCH)
-          </button>
-
-          <button
-            onClick={() => { setTimerMode("custom"); setIsRunning(false); }}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold font-mono transition-all cursor-pointer ${
-              timerMode === "custom" ? "bg-[var(--primary)] text-white shadow-md" : "text-slate-400 hover:text-white"
-            }`}
-          >
-            CUSTOM
-          </button>
-        </nav>
-
-        {/* Custom Minutes Slider */}
-        {timerMode === "custom" && (
-          <div className="w-full max-w-xs space-y-1 text-center animate-in fade-in">
-            <div className="text-xs font-mono text-slate-400">Target Duration: <span className="text-[var(--primary)] font-bold">{customMinutes} Minutes</span></div>
-            <input
-              type="range"
-              min={5}
-              max={120}
-              step={5}
-              value={customMinutes}
-              onChange={(e) => setCustomMinutes(Number(e.target.value))}
-              className="w-full accent-[var(--primary)]"
-            />
-          </div>
-        )}
-
-        {/* Main Countdown Visualizer */}
-        <div className="relative flex flex-col items-center justify-center">
-          <div className="text-6xl sm:text-8xl font-mono font-extrabold tracking-tighter text-white tabular-nums drop-shadow-lg">
-            {timerMode === "flowtime" ? formatTime(flowtimeSeconds) : formatTime(timeLeft)}
-          </div>
+      {/* Main Two-Column Focus Workspace */}
+      <main className="max-w-7xl mx-auto w-full my-auto py-4">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
-          <div className="mt-2 text-xs font-mono text-slate-400 uppercase tracking-widest flex items-center gap-2">
-            <span className={`w-2 h-2 rounded-full ${isRunning ? "bg-emerald-500 animate-ping" : "bg-slate-500"}`} />
-            <span>{isRunning ? "FOCUS INTERVAL RUNNING" : "READY FOR IMMERSION"}</span>
-          </div>
-
-          {/* Attached Task Dropdown */}
-          <div className="mt-4 flex items-center gap-2 bg-[#121822] border border-white/10 px-3 py-1.5 rounded-lg text-xs">
-            <span className="text-slate-400 font-mono">ATTACHED TASK:</span>
-            <select
-              value={attachedTaskId}
-              onChange={(e) => setAttachedTaskId(e.target.value)}
-              className="bg-transparent text-[var(--primary)] font-bold outline-none cursor-pointer"
-            >
-              {userData.tasks.map(t => (
-                <option key={t.id} value={t.id} className="bg-[#090d12] text-white">
-                  {t.courseCode}: {t.title}
-                </option>
-              ))}
-              <option value="general" className="bg-[#090d12] text-white">General Deep Reading / Problem Solving</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Play / Pause / Reset Action Controls */}
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsRunning(!isRunning)}
-            className="px-8 py-3.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-sm font-bold uppercase tracking-wider rounded-xl flex items-center gap-2.5 shadow-xl hover:scale-105 transition-all cursor-pointer"
-          >
-            {isRunning ? (
-              <>
-                <Pause className="w-5 h-5" />
-                <span>PAUSE SESSION</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-5 h-5 fill-white" />
-                <span>START IMMERSION</span>
-              </>
-            )}
-          </button>
-
-          <button
-            onClick={() => {
-              setIsRunning(false);
-              setTimeLeft(selectedDuration);
-              setFlowtimeSeconds(0);
-            }}
-            className="p-3.5 bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white rounded-xl cursor-pointer transition-colors"
-            title="Reset Timer"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </button>
-
-          <button
-            onClick={handleSessionComplete}
-            className="px-4 py-3.5 bg-[#121822] hover:bg-[#1c2636] border border-white/15 text-slate-300 hover:text-white text-xs font-bold uppercase rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-            title="End & Log Session to Study Streak"
-          >
-            <Award className="w-4 h-4 text-[#d4af37]" />
-            <span>LOG SESSION</span>
-          </button>
-        </div>
-
-        {sessionFeedback && (
-          <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono text-xs rounded-xl animate-in fade-in">
-            {sessionFeedback}
-          </div>
-        )}
-
-      </main>
-
-      {/* Bottom Multi-Track Soundscape Mixer Drawer */}
-      <footer className="p-6 border-t border-white/10 bg-[#0c1118]/90 backdrop-blur-md space-y-4">
-        
-        {/* Presets & Master Volume Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 max-w-5xl mx-auto">
-          
-          {/* Preset Buttons */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-mono uppercase text-[#d4af37] font-bold flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5" />
-              <span>SCIENTIFIC PRESETS:</span>
-            </span>
-
-            {SMART_PRESETS.map(preset => (
+          {/* =========================================================
+              LEFT COLUMN: BIG TIMER CARD WITH CIRCULAR PROGRESS RING
+             ========================================================= */}
+          <section className="lg:col-span-7 bg-[#0f1622] border border-white/10 rounded-3xl p-6 sm:p-10 flex flex-col items-center justify-between min-h-[520px] shadow-2xl relative">
+            
+            {/* Top Timer Mode Switcher Pills */}
+            <div className="flex flex-wrap items-center justify-center gap-1.5 bg-[#090d14] p-1.5 rounded-2xl border border-white/10 w-full max-w-md">
               <button
-                key={preset.id}
-                onClick={() => handleApplyPreset(preset)}
-                className="px-3 py-1.5 bg-[#16202c] hover:bg-[#1f2d3d] border border-white/10 text-xs font-bold text-slate-200 hover:text-white rounded-lg cursor-pointer transition-colors"
-                title={preset.desc}
-              >
-                {preset.name}
-              </button>
-            ))}
-
-            <button
-              onClick={handleStopAllAudio}
-              className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold rounded-lg cursor-pointer transition-colors"
-              title="Mute All Audio Tracks"
-            >
-              Mute All
-            </button>
-          </div>
-
-          {/* Master Volume */}
-          <div className="flex items-center gap-3 min-w-[200px]">
-            <Volume2 className="w-4 h-4 text-slate-400" />
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.05}
-              value={masterVolume}
-              onChange={(e) => handleMasterVolumeChange(Number(e.target.value))}
-              className="w-full accent-[var(--primary)]"
-            />
-            <span className="text-xs font-mono text-slate-400 w-8 text-right">
-              {Math.round(masterVolume * 100)}%
-            </span>
-          </div>
-
-        </div>
-
-        {/* Individual Sound Track Sliders Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 max-w-5xl mx-auto text-xs">
-          {(Object.keys(SOUND_TRACK_DEFINITIONS) as SoundscapeTrackId[]).map(id => {
-            const def = SOUND_TRACK_DEFINITIONS[id];
-            const state = trackStates[id];
-            return (
-              <div 
-                key={id}
-                className={`p-3 rounded-xl border transition-all ${
-                  state.active 
-                    ? "bg-[#141d2a] border-[var(--primary)] shadow-sm" 
-                    : "bg-[#0f1520] border-white/10 opacity-70 hover:opacity-100"
+                onClick={() => { setTimerMode("pomodoro"); setIsRunning(false); }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider transition-all cursor-pointer ${
+                  timerMode === "pomodoro" 
+                    ? "bg-[#1d63ff] text-white shadow-lg shadow-blue-500/25" 
+                    : "text-slate-400 hover:text-white"
                 }`}
               >
-                <div className="flex items-center justify-between mb-2">
-                  <button
-                    onClick={() => handleToggleTrack(id)}
-                    className={`text-xs font-bold text-left truncate cursor-pointer ${
-                      state.active ? "text-[var(--primary)]" : "text-slate-300"
-                    }`}
-                  >
-                    {def.name}
-                  </button>
-                  <input
-                    type="checkbox"
-                    checked={state.active}
-                    onChange={() => handleToggleTrack(id)}
-                    className="w-3.5 h-3.5 accent-[var(--primary)] rounded cursor-pointer"
-                  />
+                25M POMODORO
+              </button>
+
+              <button
+                onClick={() => { setTimerMode("deep"); setIsRunning(false); }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider transition-all cursor-pointer ${
+                  timerMode === "deep" 
+                    ? "bg-[#1d63ff] text-white shadow-lg shadow-blue-500/25" 
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                50M DEEP WORK
+              </button>
+
+              <button
+                onClick={() => { setTimerMode("flowtime"); setIsRunning(false); }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider transition-all cursor-pointer ${
+                  timerMode === "flowtime" 
+                    ? "bg-[#1d63ff] text-white shadow-lg shadow-blue-500/25" 
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                FLOWTIME
+              </button>
+
+              <button
+                onClick={() => { setTimerMode("custom"); setIsRunning(false); }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold font-mono tracking-wider transition-all cursor-pointer ${
+                  timerMode === "custom" 
+                    ? "bg-[#1d63ff] text-white shadow-lg shadow-blue-500/25" 
+                    : "text-slate-400 hover:text-white"
+                }`}
+              >
+                CUSTOM ({customMinutes}M)
+              </button>
+            </div>
+
+            {/* Custom Minutes Slider (If Custom Selected) */}
+            {timerMode === "custom" && (
+              <div className="w-full max-w-xs space-y-1 text-center mt-3 animate-in fade-in">
+                <input
+                  type="range"
+                  min={5}
+                  max={120}
+                  step={5}
+                  value={customMinutes}
+                  onChange={(e) => setCustomMinutes(Number(e.target.value))}
+                  className="w-full accent-[#1d63ff]"
+                />
+              </div>
+            )}
+
+            {/* Center Circular Progress Ring */}
+            <div className="relative my-auto py-6 flex items-center justify-center">
+              <svg width="320" height="320" className="transform -rotate-90">
+                {/* Background Ring Track */}
+                <circle
+                  cx="160"
+                  cy="160"
+                  r={radius}
+                  stroke="#172233"
+                  strokeWidth="8"
+                  fill="transparent"
+                />
+                {/* Glowing Active Ring */}
+                <circle
+                  cx="160"
+                  cy="160"
+                  r={radius}
+                  stroke="#1d63ff"
+                  strokeWidth="8"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={strokeDashoffset}
+                  strokeLinecap="round"
+                  fill="transparent"
+                  className="transition-all duration-1000 ease-linear drop-shadow-[0_0_12px_rgba(29,99,255,0.6)]"
+                />
+              </svg>
+
+              {/* Inside Ring: Live Time & Status */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <div className="text-6xl sm:text-7xl font-mono font-extrabold tracking-tight text-white tabular-nums drop-shadow-md">
+                  {timerMode === "flowtime" ? formatTime(flowtimeSeconds) : formatTime(timeLeft)}
                 </div>
+                <div className="mt-2 text-xs font-mono tracking-[3px] uppercase text-slate-400 font-bold">
+                  {isRunning ? "FOCUS INTERVAL" : "PAUSED"}
+                </div>
+              </div>
+            </div>
 
-                {def.frequencyLabel && (
-                  <div className="text-[9px] text-slate-400 font-mono truncate mb-2">
-                    {def.frequencyLabel}
-                  </div>
+            {/* Bottom Controls: Start/Pause Button + Reset */}
+            <div className="flex items-center gap-3 w-full max-w-xs justify-center">
+              <button
+                onClick={() => setIsRunning(!isRunning)}
+                className="flex-1 py-4 bg-[#1d63ff] hover:bg-[#1652d9] text-white text-xs font-bold font-mono uppercase tracking-[2px] rounded-2xl flex items-center justify-center gap-2.5 shadow-xl shadow-blue-500/30 hover:shadow-blue-500/50 transition-all cursor-pointer"
+              >
+                {isRunning ? (
+                  <>
+                    <Pause className="w-4 h-4 fill-white" />
+                    <span>PAUSE FOCUS</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4 fill-white" />
+                    <span>START FOCUS</span>
+                  </>
                 )}
+              </button>
 
-                <div className="flex items-center gap-2 pt-1">
+              <button
+                onClick={handleReset}
+                className="p-4 bg-[#141e2e] hover:bg-[#1c2a3f] border border-white/10 text-slate-400 hover:text-white rounded-2xl cursor-pointer transition-colors"
+                title="Reset Timer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+
+          </section>
+
+          {/* =========================================================
+              RIGHT COLUMN: TARGET DELIVERABLE + AMBIENT SOUNDSCAPES
+             ========================================================= */}
+          <div className="lg:col-span-5 space-y-6">
+            
+            {/* CARD 1: TARGET DELIVERABLE */}
+            <section className="bg-[#0f1622] border border-white/10 rounded-3xl p-6 space-y-3 shadow-xl">
+              <div className="flex items-center gap-2 text-xs font-bold font-mono tracking-wider uppercase text-[#1d63ff]">
+                <Flame className="w-4 h-4 text-[#1d63ff]" />
+                <span>TARGET DELIVERABLE</span>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1.5">
+                  SELECT TASK FROM BACKLOG
+                </label>
+                <select
+                  value={attachedTaskId}
+                  onChange={(e) => setAttachedTaskId(e.target.value)}
+                  className="w-full h-11 px-3.5 bg-[#090d14] border border-white/10 text-white font-medium text-xs rounded-xl outline-none focus:border-[#1d63ff] transition-colors cursor-pointer"
+                >
+                  {userData.tasks.length > 0 ? (
+                    userData.tasks.map(task => (
+                      <option key={task.id} value={task.id} className="bg-[#090d14] text-white">
+                        {task.courseCode ? `[${task.courseCode}] ` : ""}{task.title}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" className="bg-[#090d14] text-slate-400">No active tasks in backlog</option>
+                  )}
+                  <option value="general" className="bg-[#090d14] text-white">
+                    🎯 General Deep Study & Problem Solving
+                  </option>
+                </select>
+              </div>
+            </section>
+
+            {/* CARD 2: AMBIENT SOUNDSCAPES */}
+            <section className="bg-[#0f1622] border border-white/10 rounded-3xl p-6 space-y-5 shadow-xl">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2 text-xs font-bold font-mono tracking-wider uppercase text-emerald-400">
+                  <Radio className="w-4 h-4 text-emerald-400" />
+                  <span>AMBIENT SOUNDSCAPES</span>
+                </div>
+                <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 uppercase tracking-widest">
+                  ZERO NETWORK DELAY
+                </span>
+              </div>
+
+              {/* Soundscape Preset Grid */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                
+                {/* 1. Silent */}
+                <button
+                  onClick={() => handleSelectSoundscape("none")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "none"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <VolumeX className="w-4 h-4" />
+                  <span className="text-[11px] font-bold">Silent</span>
+                </button>
+
+                {/* 2. Natural Rain */}
+                <button
+                  onClick={() => handleSelectSoundscape("rain")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "rain"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <CloudRain className="w-4 h-4" />
+                  <span className="text-[11px] font-bold">Rain</span>
+                </button>
+
+                {/* 3. Deep Brown Noise */}
+                <button
+                  onClick={() => handleSelectSoundscape("brown")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "brown"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="320Hz Cascaded Lowpass (ADHD Isolation)"
+                >
+                  <Radio className="w-4 h-4" />
+                  <span className="text-[11px] font-bold">Noise</span>
+                </button>
+
+                {/* 4. 40Hz Gamma */}
+                <button
+                  onClick={() => handleSelectSoundscape("gamma")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "gamma"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="40Hz Gamma Binaural Waves for Coding & Math"
+                >
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  <span className="text-[11px] font-bold">40Hz</span>
+                </button>
+
+                {/* 5. 10Hz Alpha */}
+                <button
+                  onClick={() => handleSelectSoundscape("alpha")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "alpha"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="10Hz Alpha Binaural Waves for Calm Alertness"
+                >
+                  <Brain className="w-4 h-4 text-purple-400" />
+                  <span className="text-[11px] font-bold">Alpha</span>
+                </button>
+
+                {/* 6. Warm Cafe */}
+                <button
+                  onClick={() => handleSelectSoundscape("cafe")}
+                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    audioType === "cafe"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                >
+                  <Coffee className="w-4 h-4 text-amber-600" />
+                  <span className="text-[11px] font-bold">Cafe</span>
+                </button>
+
+              </div>
+
+              {/* Volume Slider Bar */}
+              {audioType !== "none" && audioType !== "music_embed" && (
+                <div className="flex items-center gap-3 pt-1 animate-in fade-in">
+                  <Volume2 className="w-4 h-4 text-slate-400" />
                   <input
                     type="range"
                     min={0}
                     max={1}
                     step={0.05}
-                    disabled={!state.active}
-                    value={state.volume}
-                    onChange={(e) => handleTrackVolumeChange(id, Number(e.target.value))}
-                    className="w-full accent-[var(--primary)] disabled:opacity-30"
+                    value={volume}
+                    onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                    className="w-full accent-[#1d63ff]"
                   />
-                  <span className="text-[9px] font-mono text-slate-400 w-6 text-right">
-                    {state.active ? Math.round(state.volume * 100) : "--"}
+                  <span className="text-xs font-mono text-slate-400 w-8 text-right">
+                    {Math.round(volume * 100)}%
                   </span>
                 </div>
+              )}
+
+              {/* CURATED STUDY MUSIC SECTION */}
+              <div className="pt-3 border-t border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-bold font-mono uppercase text-slate-300">
+                    <Music className="w-3.5 h-3.5 text-[#1d63ff]" />
+                    <span>CURATED STUDY MUSIC</span>
+                  </div>
+                  <button
+                    onClick={() => setIsCustomUrlInputOpen(true)}
+                    className="text-[10px] font-mono text-[#1d63ff] hover:underline cursor-pointer flex items-center gap-1"
+                  >
+                    <LinkIcon className="w-3 h-3" />
+                    <span>Paste Custom URL</span>
+                  </button>
+                </div>
+
+                {/* Music Presets Grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {MUSIC_PRESETS.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelectPresetMusic(p.id)}
+                      className={`px-3 py-2 rounded-xl text-xs font-mono flex items-center gap-2 transition-all cursor-pointer border truncate ${
+                        audioType === "music_embed" && selectedMusicPreset === p.id
+                          ? "bg-emerald-500/20 text-emerald-400 border-emerald-500 font-bold"
+                          : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      <Music className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Embedded Stream Player */}
+                {audioType === "music_embed" && (
+                  <div className="rounded-2xl overflow-hidden bg-black border border-white/10 shadow-inner h-28 animate-in fade-in duration-200">
+                    <iframe
+                      src={customEmbedUrl}
+                      width="100%"
+                      height="112"
+                      frameBorder="0"
+                      allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                      loading="lazy"
+                      title="Music Player"
+                      className="w-full h-full"
+                    />
+                  </div>
+                )}
+
               </div>
-            );
-          })}
+
+            </section>
+
+          </div>
+
+        </div>
+      </main>
+
+      {/* Bottom Footer Status */}
+      <footer className="flex flex-col sm:flex-row items-center justify-between text-xs font-mono text-slate-400 max-w-7xl mx-auto w-full pt-4 border-t border-white/10 gap-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-3.5 h-3.5 text-[#d4af37]" />
+          <span>Campus: <strong className="text-white">{user?.university || "University"}</strong></span>
+          <span>•</span>
+          <span>Semester: <strong className="text-white">{user?.semester || "Active"}</strong></span>
         </div>
 
+        <div className="flex items-center gap-2">
+          <span>Active Audio: <strong className="text-[#1d63ff] uppercase font-bold">{audioType === "music_embed" ? "Music Stream" : audioType}</strong></span>
+        </div>
       </footer>
+
+      {/* Modal: Custom Stream Link Input */}
+      {isCustomUrlInputOpen && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <form onSubmit={handleSaveCustomEmbed} className="bg-[#0f1622] border border-white/15 text-white max-w-md w-full p-6 rounded-2xl space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-white/10">
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Music className="w-4 h-4 text-[#1d63ff]" />
+                <span>Connect Custom Music Stream</span>
+              </div>
+              <button type="button" onClick={() => setIsCustomUrlInputOpen(false)} className="text-slate-400 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 font-light leading-relaxed">
+              Paste any public Spotify playlist URL or YouTube Music/Video link to stream directly inside your focus session.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-slate-400 mb-1">
+                SPOTIFY / YOUTUBE LINK
+              </label>
+              <input
+                type="url"
+                required
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                placeholder="https://open.spotify.com/playlist/... or YouTube link"
+                className="w-full h-11 px-3 text-xs bg-[#090d14] border border-white/15 text-white rounded-xl outline-none focus:border-[#1d63ff]"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setIsCustomUrlInputOpen(false)}
+                className="w-1/3 py-2.5 border border-white/15 text-xs font-bold uppercase rounded-xl cursor-pointer"
+              >
+                CANCEL
+              </button>
+              <button
+                type="submit"
+                className="w-2/3 py-2.5 bg-[#1d63ff] hover:bg-[#1652d9] text-white text-xs font-bold uppercase tracking-wider rounded-xl cursor-pointer shadow-md shadow-blue-500/20"
+              >
+                CONNECT STREAM
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Modal: Session Completion Celebration Dialog */}
+      {isCompleted && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in zoom-in-95 duration-200">
+          <div className="bg-[#0f1622] border border-[#d4af37]/40 text-white max-w-md w-full p-8 text-center space-y-6 shadow-2xl rounded-2xl">
+            <div className="w-16 h-16 rounded-full bg-[#d4af37]/20 border border-[#d4af37] text-[#d4af37] flex items-center justify-center mx-auto animate-bounce">
+              <Sparkles className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[10px] font-mono text-[#d4af37] tracking-[2px] uppercase font-bold">
+                SESSION COMPLETED
+              </div>
+              <h3 className="text-2xl font-bold text-white">
+                Deep Work Session Logged!
+              </h3>
+              <p className="text-xs text-slate-300 font-light">
+                You maintained pure flow state for <strong className="text-white">{loggedMinutes} minutes</strong>. Your streak and velocity analytics have been updated.
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              {currentTask && currentTask.status !== "completed" && (
+                <button
+                  onClick={handleMarkTaskDone}
+                  className="w-full py-3.5 bg-[#1d63ff] hover:bg-[#1652d9] text-white text-xs font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>MARK &ldquo;{currentTask.title.slice(0, 24)}...&rdquo; AS DONE</span>
+                </button>
+              )}
+
+              <button
+                onClick={() => {
+                  setIsCompleted(false);
+                  handleReset();
+                }}
+                className="w-full py-3 border border-white/15 text-slate-300 hover:text-white text-xs font-bold uppercase rounded-xl cursor-pointer"
+              >
+                START NEXT FOCUS BLOCK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
