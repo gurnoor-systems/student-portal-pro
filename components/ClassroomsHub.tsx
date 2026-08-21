@@ -127,16 +127,16 @@ export default function ClassroomsHub() {
     <div className="space-y-10">
       
       {/* ========================================================================= */}
-      {/* 1. CLASSROOMS HUB & 1-CLICK VIDEO LAUNCHER                                 */}
+      {/* 1. COURSES & LIVE CLASSROOMS                                              */}
       {/* ========================================================================= */}
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--hairline)]">
           <div>
             <div className="text-[12px] font-bold tracking-[1.5px] uppercase text-[var(--primary)]">
-              ENROLLED COURSES & VIDEO HUBS
+              ENROLLED COURSES
             </div>
             <h2 className="text-2xl font-bold text-[var(--ink)]">
-              Classrooms & 1-Click Video Launcher
+              Courses & Classrooms
             </h2>
             <p className="text-xs font-light text-[var(--muted)] mt-0.5">
               Launch directly into verified Google Meet, Zoom, or Teams sessions with zero passcode searching.
@@ -198,7 +198,7 @@ export default function ClassroomsHub() {
                   className="bmw-btn-primary w-full flex items-center justify-center gap-2"
                 >
                   <Video className="w-4 h-4" />
-                  <span>JOIN LIVE CLASSROOM</span>
+                  <span>JOIN LIVE CLASS</span>
                   <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
                 </a>
               </div>
@@ -208,7 +208,7 @@ export default function ClassroomsHub() {
       </div>
 
       {/* ========================================================================= */}
-      {/* 2. COURSE MATERIALS & CUSTOM NESTED FOLDERS REPOSITORY                    */}
+      {/* 2. COURSE DOCUMENTS & FILES REPOSITORY                                    */}
       {/* ========================================================================= */}
       <div className="space-y-6 pt-6 border-t border-[var(--hairline)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--hairline)]">
@@ -217,7 +217,7 @@ export default function ClassroomsHub() {
               ACADEMIC REPOSITORY
             </div>
             <h2 className="text-2xl font-bold text-[var(--ink)]">
-              Course Materials & Custom Subject Folders
+              Course Documents & Files
             </h2>
             <p className="text-xs font-light text-[var(--muted)] mt-0.5">
               Directly upload lecture slides, lab manuals, and cheat sheets organized by custom folder structures.

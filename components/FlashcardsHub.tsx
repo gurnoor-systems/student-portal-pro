@@ -121,13 +121,13 @@ export default function FlashcardsHub() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[var(--hairline)]">
         <div>
           <div className="text-[10px] font-mono tracking-[2px] uppercase text-[var(--primary)] font-bold">
-            ACTIVE RECALL ENGINE
+            STUDY TOOLS
           </div>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--ink)]">
-            AI Flashcards & Spaced Repetition
+            Flashcards & Study Decks
           </h2>
           <p className="text-xs text-[var(--muted)] font-light mt-1">
-            Test your knowledge retention with scientifically proven active recall and spaced intervals.
+            Test your knowledge retention with active recall and review intervals.
           </p>
         </div>
 

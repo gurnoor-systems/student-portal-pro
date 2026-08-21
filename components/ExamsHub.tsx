@@ -146,10 +146,10 @@ export default function ExamsHub() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[var(--hairline)]">
         <div>
           <div className="text-[12px] font-bold tracking-[1.5px] uppercase text-[var(--primary)]">
-            CHRONOLOGICAL ASSESSMENT HUB
+            ASSESSMENTS & FINALS
           </div>
           <h2 className="text-2xl font-bold text-[var(--ink)]">
-            Exams Timeline & AI Study Planner
+            Upcoming Exams & Schedule
           </h2>
           <p className="text-xs font-light text-[var(--muted)] mt-0.5">
             Automated date categorization and 1-click step-by-step milestone generation.

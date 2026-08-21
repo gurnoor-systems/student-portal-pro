@@ -28,10 +28,10 @@ export default function FeaturesSection({ onOpenWalkthrough }: FeaturesSectionPr
         {/* Section Header */}
         <div className="max-w-3xl mb-14 space-y-3">
           <div className="text-[11px] font-mono tracking-[2px] uppercase text-[var(--primary)] font-bold">
-            PLATFORM CAPABILITIES
+            FEATURES
           </div>
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight text-[var(--ink)]">
-            Engineered for Academic Focus.
+            Everything you need for your semester.
           </h2>
           <p className="text-sm sm:text-base font-light text-[var(--body)] leading-relaxed">
             Everything you need to manage assignments, exams, and classes without clutter or distraction.
@@ -90,7 +90,7 @@ export default function FeaturesSection({ onOpenWalkthrough }: FeaturesSectionPr
                   TASK MANAGEMENT
                 </div>
                 <h3 className="text-lg font-bold text-[var(--ink)] leading-snug">
-                  2-Click Task Capture & Matrix
+                  Assignment & Task Tracking
                 </h3>
                 <p className="text-xs font-light text-[var(--body)] leading-relaxed">
                   Capture assignments in under 3 seconds using <span className="font-mono bg-[var(--surface-soft)] px-1 py-0.5 border border-[var(--hairline)]">Ctrl+K</span> with color-coded urgency tiers.
@@ -295,7 +295,7 @@ export default function FeaturesSection({ onOpenWalkthrough }: FeaturesSectionPr
                   COURSE REPOSITORY
                 </div>
                 <h3 className="text-lg font-bold text-[var(--ink)] leading-snug">
-                  Course Hub & Meeting Launcher
+                  Courses & Class Links
                 </h3>
                 <p className="text-xs font-light text-[var(--body)] leading-relaxed">
                   Store lecture slides and lab notes with a 1-click meeting launcher for Google Meet, Zoom, and Teams.

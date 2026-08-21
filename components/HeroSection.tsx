@@ -39,7 +39,7 @@ export default function HeroSection({ onOpenWalkthrough, onOpenAuth }: HeroSecti
           
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--surface-soft)] border border-[var(--hairline)] text-[10px] font-mono tracking-[2px] uppercase text-[var(--primary)] font-bold rounded">
             <Logo size={13} variant="gold" />
-            <span>PRECISION ACADEMIC SYSTEM</span>
+            <span>ACADEMIC WORKSPACE</span>
           </div>
 
           {/* Punchy Minimalist Headline */}
@@ -49,7 +49,7 @@ export default function HeroSection({ onOpenWalkthrough, onOpenAuth }: HeroSecti
           </h1>
 
           <p className="text-sm sm:text-base font-light text-[var(--body)] max-w-lg leading-relaxed">
-            All your coursework, exam countdowns, and class links in one unified command center. Zero distractions.
+            Keep track of your coursework, exam deadlines, and class links in one place.
           </p>
 
           {/* Action CTAs (Tesla Blue + Clean Secondary Button) */}
@@ -75,15 +75,15 @@ export default function HeroSection({ onOpenWalkthrough, onOpenAuth }: HeroSecti
           <div className="flex flex-wrap items-center gap-6 pt-2 text-xs text-[var(--muted)] font-mono">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)]" />
-              <span>Private & isolated data</span>
+              <span>Private & secure</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)]" />
-              <span>100% Free access</span>
+              <span>Free for students</span>
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-3.5 h-3.5 text-[var(--primary)]" />
-              <span>Instant Ctrl+K capture</span>
+              <span>Quick add (Ctrl+K)</span>
             </div>
           </div>
 

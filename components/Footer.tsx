@@ -24,7 +24,7 @@ export default function Footer() {
               </div>
             </div>
             <p className="text-xs font-light text-[var(--muted)] leading-relaxed">
-              Precision personal and academic management operating system for high-performing students.
+              Workspace for managing your coursework and schedule.
             </p>
           </div>
 
