@@ -460,6 +460,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // 10. DELETE ACCOUNT (Permanently purge from memory and disk database)
+    if (action === "delete-account") {
+      const { email } = body;
+      if (!email) {
+        return NextResponse.json({ error: "Email is required" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      accountsStore.delete(trimmedEmail);
+      pinsStore.delete(trimmedEmail);
+
+      const disk = readDiskDB();
+      delete disk.accounts[trimmedEmail];
+      delete disk.pins[trimmedEmail];
+      writeDiskDB(disk);
+
+      return NextResponse.json({ success: true, message: "Account permanently purged from database" });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (err: any) {
     console.error("Auth sync error:", err);

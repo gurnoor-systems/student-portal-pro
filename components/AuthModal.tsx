@@ -19,7 +19,9 @@ import {
   Check,
   Plus,
   CheckCircle2,
-  Send
+  Send,
+  Eye,
+  EyeOff
 } from "lucide-react";
 
 interface AuthModalProps {
@@ -83,6 +85,8 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
 
   // Campus, Degree & Semester States
@@ -139,7 +143,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
       return;
     }
     if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
+      setError("Password must be at least 6 characters in length.");
+      return;
+    }
+    if (confirmPassword && password !== confirmPassword) {
+      setError("Passwords do not match. Please verify your password.");
       return;
     }
     setStep(2);
@@ -591,17 +599,57 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                  PASSWORD (6+ CHARACTERS)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-mono uppercase text-slate-300">
+                    CREATE PASSWORD (MIN 6 CHARACTERS)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                  >
+                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    <span>{showPassword ? "Hide" : "Show"}</span>
+                  </button>
+                </div>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                  placeholder="Choose your student password (min 6 characters)"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                  CONFIRM PASSWORD
+                </label>
+                <input
+                  type={showPassword ? "text" : "password"}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter your chosen password"
+                  className={`w-full h-11 px-3 bg-[#090d12] border text-sm text-white outline-none rounded-xl font-mono ${
+                    confirmPassword && confirmPassword !== password 
+                      ? "border-red-500/50 focus:border-red-500" 
+                      : confirmPassword && confirmPassword === password 
+                        ? "border-emerald-500/50 focus:border-emerald-500"
+                        : "border-white/15 focus:border-[#1c69d4]"
+                  }`}
+                  required
+                />
+                {confirmPassword && confirmPassword === password && (
+                  <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
+                    <Check className="w-3 h-3" />
+                    <span>Passwords match perfectly</span>
+                  </div>
+                )}
               </div>
 
               <button

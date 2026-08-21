@@ -94,6 +94,7 @@ interface AuthContextType {
   sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; resetCode?: string; error?: string }>;
   resetPasswordWithCode: (email: string, code: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   rolloverSemester: (nextSemester: string, clearPreviousSubjects: boolean) => Promise<{ success: boolean; error?: string }>;
+  deleteAccount: () => Promise<{ success: boolean; error?: string }>;
   revokeDeviceSession: (deviceId: string) => Promise<boolean>;
   revokeAllOtherDevices: () => Promise<boolean>;
   refreshMultiDeviceSync: () => Promise<void>;
@@ -1109,6 +1110,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   }, [user]);
 
+  // Permanently delete user account and clean all storage records
+  const deleteAccount = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "No active user session." };
+    await simulateNetworkLatency(400);
+
+    const emailToDelete = user.email.toLowerCase();
+    const userIdToDelete = user.id;
+
+    // 1. Delete from Server Sync API / Database
+    try {
+      await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-account",
+          email: emailToDelete
+        })
+      });
+    } catch (err) {
+      console.warn("Server delete account error:", err);
+    }
+
+    // 2. Sign out of Supabase if active
+    const supabase = createClient();
+    if (supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch {}
+    }
+
+    // 3. Clear Local Storage
+    localStorage.removeItem("student_portal_active_user");
+    localStorage.removeItem(`student_portal_user_${userIdToDelete}_data`);
+    
+    const accounts = getRegisteredAccounts();
+    const filteredAccounts = accounts.filter(a => a.id !== userIdToDelete && a.email.toLowerCase() !== emailToDelete);
+    saveRegisteredAccounts(filteredAccounts);
+
+    // 4. Reset React State
+    setUser(null);
+    setUserData(EMPTY_DATA);
+
+    return { success: true };
+  }, [user]);
+
   // Background Auto-Sync across all concurrent devices (every 25s & on window focus)
   useEffect(() => {
     if (!user?.email) return;
@@ -1154,6 +1200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sendPasswordResetEmail,
       resetPasswordWithCode,
       rolloverSemester,
+      deleteAccount,
       revokeDeviceSession,
       revokeAllOtherDevices,
       refreshMultiDeviceSync,

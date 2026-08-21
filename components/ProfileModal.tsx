@@ -69,6 +69,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     sendPasswordResetEmail,
     resetPasswordWithCode,
     rolloverSemester,
+    deleteAccount,
     revokeDeviceSession,
     revokeAllOtherDevices,
     refreshMultiDeviceSync
@@ -77,6 +78,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   const [activeTab, setActiveTab] = useState<"subjects" | "security" | "devices" | "profile">("subjects");
   const [deviceActionLoading, setDeviceActionLoading] = useState<string | null>(null);
   const [deviceSyncFeedback, setDeviceSyncFeedback] = useState<string | null>(null);
+
+  // Delete Account Confirmation States
+  const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
+  const [deleteConfirmedCheckbox, setDeleteConfirmedCheckbox] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Profile fields state
   const isCustomDegreeInitial = !POPULAR_DEGREES.slice(0, -1).includes(user?.degree || "");
@@ -271,6 +277,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     setDeviceSyncFeedback("Synced with cloud & active devices just now!");
     setDeviceActionLoading(null);
     setTimeout(() => setDeviceSyncFeedback(null), 2500);
+  };
+
+  // Handle Delete Account
+  const handleDeleteAccount = async () => {
+    if (!deleteConfirmedCheckbox) return;
+    setIsDeletingAccount(true);
+    await deleteAccount();
+    setIsDeletingAccount(false);
+    onClose();
   };
 
   return (
@@ -755,6 +770,74 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                     <Mail className="w-3.5 h-3.5 text-[#4285F4]" />
                     <span>{isResetSending ? "DISPATCHING RECOVERY CODE..." : "SEND PASSWORD RESET LINK / INSTANT PIN"}</span>
                   </button>
+                )}
+              </div>
+
+              {/* DANGER ZONE: PERMANENTLY REMOVE / DELETE ACCOUNT */}
+              <div className="p-4 bg-red-950/20 border border-red-500/30 rounded-xl space-y-3.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-red-400 uppercase tracking-wider">
+                    <AlertCircle className="w-4 h-4 text-red-400" />
+                    <span>Danger Zone • Delete Student Account</span>
+                  </div>
+                  {!isDeleteAccountOpen && (
+                    <button
+                      type="button"
+                      onClick={() => setIsDeleteAccountOpen(true)}
+                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer"
+                    >
+                      Remove Account
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Permanently purge your student profile, enrolled subjects, tasks, syllabus extractions, and session records directly from the database.
+                </p>
+
+                {isDeleteAccountOpen && (
+                  <div className="p-4 bg-[#0c0809] border border-red-500/50 rounded-xl space-y-3.5 animate-in fade-in">
+                    <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-xs text-red-300 space-y-1">
+                      <div className="font-bold flex items-center gap-1.5 text-red-400">
+                        <AlertCircle className="w-4 h-4" />
+                        <span>Warning: Irreversible Database Purge</span>
+                      </div>
+                      <p className="text-[11px] text-slate-300 font-light leading-relaxed">
+                        This will immediately clear your account (<span className="font-mono text-white font-bold">{user.email}</span>), all enrolled subjects, deliverables, exam schedules, and active multi-device sessions from the database.
+                      </p>
+                    </div>
+
+                    <label className="flex items-start gap-2.5 cursor-pointer text-slate-200 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={deleteConfirmedCheckbox}
+                        onChange={(e) => setDeleteConfirmedCheckbox(e.target.checked)}
+                        className="w-4 h-4 rounded text-red-600 mt-0.5"
+                      />
+                      <span className="leading-snug">
+                        I understand that this action is permanent and directly removes my account and data from the database.
+                      </span>
+                    </label>
+
+                    <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => { setIsDeleteAccountOpen(false); setDeleteConfirmedCheckbox(false); }}
+                        className="px-3 py-1.5 border border-white/10 text-slate-400 hover:text-white rounded text-xs cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDeleteAccount}
+                        disabled={!deleteConfirmedCheckbox || isDeletingAccount}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold uppercase rounded text-xs cursor-pointer transition-colors flex items-center gap-2 shadow-lg shadow-red-600/30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{isDeletingAccount ? "PURGING FROM DATABASE..." : "PERMANENTLY DELETE ACCOUNT"}</span>
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 
