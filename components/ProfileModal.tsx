@@ -14,6 +14,7 @@ import {
   RefreshCw, 
   ArrowRight, 
   KeyRound, 
+  Key,
   ShieldCheck, 
   Mail, 
   Video, 
