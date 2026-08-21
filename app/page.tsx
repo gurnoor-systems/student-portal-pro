@@ -5,6 +5,7 @@ import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import FeaturesSection from "@/components/FeaturesSection";
 import LandingShowcase from "@/components/LandingShowcase";
+import FAQSection from "@/components/FAQSection";
 import Footer from "@/components/Footer";
 import InteractiveDemoPlayer from "@/components/InteractiveDemoPlayer";
 import ExamsQuickViewModal from "@/components/ExamsQuickViewModal";
@@ -69,6 +70,7 @@ export default function Home() {
           />
           <FeaturesSection onOpenWalkthrough={() => setIsDemoPlayerOpen(true)} />
           <LandingShowcase onOpenAuth={handleOpenAuth} />
+          <FAQSection />
           <Footer />
         </>
       )}

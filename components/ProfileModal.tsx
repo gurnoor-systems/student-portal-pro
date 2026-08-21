@@ -26,12 +26,17 @@ import {
   Tablet,
   Radio,
   LogOut,
-  CheckCircle2
+  CheckCircle2,
+  HelpCircle,
+  ChevronDown,
+  Search
 } from "lucide-react";
+import { FAQ_DATA } from "@/components/FAQSection";
 
 interface ProfileModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialTab?: "subjects" | "security" | "devices" | "profile" | "faq";
 }
 
 const POPULAR_DEGREES = [
@@ -59,7 +64,7 @@ const SUGGESTED_NEXT_SEMESTERS = [
   "Spring 2027"
 ];
 
-export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
+export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" }: ProfileModalProps) {
   const { 
     user, 
     userData, 
@@ -76,7 +81,9 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     refreshMultiDeviceSync
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"subjects" | "security" | "devices" | "profile">("subjects");
+  const [activeTab, setActiveTab] = useState<"subjects" | "security" | "devices" | "profile" | "faq">(initialTab);
+  const [faqSearchQuery, setFaqSearchQuery] = useState("");
+  const [openFaqId, setOpenFaqId] = useState<string | null>("faq-1");
   const [deviceActionLoading, setDeviceActionLoading] = useState<string | null>(null);
   const [deviceSyncFeedback, setDeviceSyncFeedback] = useState<string | null>(null);
 
@@ -381,6 +388,18 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           >
             <User className="w-4 h-4" />
             <span>Academic Info</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("faq")}
+            className={`py-3 px-3 sm:px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+              activeTab === "faq"
+                ? "border-[var(--primary)] text-[var(--primary)] font-bold"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            <HelpCircle className="w-4 h-4 text-[var(--primary)]" />
+            <span>FAQ & Help</span>
           </button>
         </div>
 
@@ -1122,6 +1141,89 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </button>
               </div>
             </form>
+          )}
+
+          {/* TAB 5: FAQ & STUDENT HELP */}
+          {activeTab === "faq" && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              
+              {/* Header Banner */}
+              <div className="p-4 bg-[#141b24] border border-white/10 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] font-mono uppercase text-[var(--primary)] font-bold flex items-center gap-1.5">
+                    <HelpCircle className="w-3.5 h-3.5" />
+                    <span>STUDENT HELP & KNOWLEDGE BASE</span>
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    Frequently Asked Questions
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    Find quick answers regarding enrolled subjects, syllabus parsing, multi-device sync, and account security.
+                  </div>
+                </div>
+              </div>
+
+              {/* FAQ Search Bar */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={faqSearchQuery}
+                  onChange={(e) => setFaqSearchQuery(e.target.value)}
+                  placeholder="Search questions (e.g., subjects, syllabus, password, calendar)..."
+                  className="w-full h-10 pl-10 pr-4 bg-[#090d12] border border-white/15 text-white rounded-lg outline-none focus:border-[var(--primary)] text-xs font-medium placeholder:text-slate-500"
+                />
+              </div>
+
+              {/* FAQ Items List */}
+              <div className="space-y-3">
+                {FAQ_DATA.filter(f => 
+                  f.question.toLowerCase().includes(faqSearchQuery.toLowerCase()) || 
+                  f.answer.toLowerCase().includes(faqSearchQuery.toLowerCase())
+                ).map((faq) => {
+                  const isOpen = openFaqId === faq.id;
+                  const Icon = faq.icon;
+
+                  return (
+                    <div
+                      key={faq.id}
+                      className={`border rounded-xl transition-all overflow-hidden ${
+                        isOpen 
+                          ? "bg-[#141b24] border-[var(--primary)]/60" 
+                          : "bg-[#0c121a] border-white/10 hover:border-white/20"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setOpenFaqId(prev => prev === faq.id ? null : faq.id)}
+                        className="w-full p-4 text-left flex items-center justify-between gap-3 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            isOpen ? "bg-[var(--primary)] text-white" : "bg-white/5 text-slate-400"
+                          }`}>
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="text-xs font-bold text-white">
+                            {faq.question}
+                          </span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200 ${
+                          isOpen ? "rotate-180 text-[var(--primary)]" : ""
+                        }`} />
+                      </button>
+
+                      {isOpen && (
+                        <div className="px-4 pb-4 pt-1 text-[11px] text-slate-300 font-light leading-relaxed border-t border-white/5 animate-in fade-in duration-150">
+                          <p className="pl-10">{faq.answer}</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+            </div>
           )}
 
         </div>

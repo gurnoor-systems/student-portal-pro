@@ -21,7 +21,8 @@ import {
   GraduationCap,
   Timer,
   BookOpen,
-  Lock
+  Lock,
+  HelpCircle
 } from "lucide-react";
 
 interface NavbarProps {
@@ -44,6 +45,12 @@ export default function Navbar({
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<"subjects" | "security" | "devices" | "profile" | "faq">("subjects");
+
+  const openProfileTab = (tab: "subjects" | "security" | "devices" | "profile" | "faq") => {
+    setProfileInitialTab(tab);
+    setIsProfileOpen(true);
+  };
 
   return (
     <>
@@ -154,7 +161,7 @@ export default function Navbar({
 
                       <div className="space-y-1 text-xs">
                         <button
-                          onClick={() => { setIsUserMenuOpen(false); setIsProfileOpen(true); }}
+                          onClick={() => { setIsUserMenuOpen(false); openProfileTab("subjects"); }}
                           className="w-full p-2 text-left hover:bg-[var(--surface-soft)] text-[var(--ink)] font-semibold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
                         >
                           <BookOpen className="w-3.5 h-3.5 text-[var(--primary)]" />
@@ -162,11 +169,19 @@ export default function Navbar({
                         </button>
 
                         <button
-                          onClick={() => { setIsUserMenuOpen(false); setIsProfileOpen(true); }}
+                          onClick={() => { setIsUserMenuOpen(false); openProfileTab("security"); }}
                           className="w-full p-2 text-left hover:bg-[var(--surface-soft)] text-[var(--ink)] font-semibold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
                         >
                           <Lock className="w-3.5 h-3.5 text-[#d4af37]" />
                           <span>Change Password & Security</span>
+                        </button>
+
+                        <button
+                          onClick={() => { setIsUserMenuOpen(false); openProfileTab("faq"); }}
+                          className="w-full p-2 text-left hover:bg-[var(--surface-soft)] text-[var(--ink)] font-semibold flex items-center gap-2 cursor-pointer rounded-lg transition-colors"
+                        >
+                          <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Frequently Asked Questions (FAQ)</span>
                         </button>
 
                         <button
@@ -218,12 +233,12 @@ export default function Navbar({
                 >
                   <span>Exams & Milestones</span>
                 </button>
-                <button 
-                  onClick={onOpenWalkthrough}
-                  className="hover:text-[var(--nav-ink)] transition-colors uppercase tracking-[0.8px] cursor-pointer text-[12px]"
+                <a 
+                  href="#faq" 
+                  className="hover:text-[var(--nav-ink)] transition-colors"
                 >
-                  Platform Tour
-                </button>
+                  FAQ
+                </a>
                 <a 
                   href="#security" 
                   className="hover:text-[var(--nav-ink)] transition-colors"
@@ -353,14 +368,37 @@ export default function Navbar({
                         <span>Exams & Milestones</span>
                         <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
                       </button>
+
+                      <a
+                        href="#faq"
+                        onClick={() => setIsDrawerOpen(false)}
+                        className="flex items-center justify-between p-3.5 border border-[var(--hairline)] text-[var(--ink)] hover:border-[var(--primary)] transition-colors rounded-xl"
+                      >
+                        <span>FAQ & Help</span>
+                        <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
+                      </a>
                     </>
                   ) : (
                     <>
                       <button
-                        onClick={() => { setIsDrawerOpen(false); onOpenWalkthrough(); }}
+                        onClick={() => { setIsDrawerOpen(false); openProfileTab("subjects"); }}
                         className="w-full flex items-center justify-between p-3.5 border border-[var(--hairline)] text-[var(--ink)] hover:border-[var(--primary)] transition-colors text-left cursor-pointer rounded-xl"
                       >
-                        <span>Universal Search (Ctrl+K)</span>
+                        <div className="flex items-center gap-2">
+                          <BookOpen className="w-4 h-4 text-[var(--primary)]" />
+                          <span>Manage Subjects</span>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
+                      </button>
+
+                      <button
+                        onClick={() => { setIsDrawerOpen(false); openProfileTab("faq"); }}
+                        className="w-full flex items-center justify-between p-3.5 border border-[var(--hairline)] text-[var(--ink)] hover:border-[var(--primary)] transition-colors text-left cursor-pointer rounded-xl"
+                      >
+                        <div className="flex items-center gap-2">
+                          <HelpCircle className="w-4 h-4 text-emerald-400" />
+                          <span>FAQ & Help</span>
+                        </div>
                         <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
                       </button>
 
@@ -368,7 +406,10 @@ export default function Navbar({
                         onClick={() => { setIsDrawerOpen(false); onOpenNotifications(); }}
                         className="w-full flex items-center justify-between p-3.5 border border-[var(--hairline)] text-[var(--ink)] hover:border-[var(--primary)] transition-colors text-left cursor-pointer rounded-xl"
                       >
-                        <span>Notification Center</span>
+                        <div className="flex items-center gap-2">
+                          <Bell className="w-4 h-4 text-[#d4af37]" />
+                          <span>Notification Center</span>
+                        </div>
                         <ChevronRight className="w-4 h-4 text-[var(--muted)]" />
                       </button>
                     </>
@@ -402,6 +443,7 @@ export default function Navbar({
       <ProfileModal 
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
+        initialTab={profileInitialTab}
       />
     </>
   );
