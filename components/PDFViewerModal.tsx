@@ -99,15 +99,32 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
         }
 
         // 3. Stream from Cloudflare R2 and save to IndexedDB for 0ms next view
-        const response = await fetch(targetUrl);
-        if (!response.ok) throw new Error("Could not download file from cloud storage");
-        const freshBlob = await response.blob();
+        try {
+          const response = await fetch(targetUrl);
+          if (response.ok) {
+            const freshBlob = await response.blob();
+            if (isMounted) {
+              await PDFCacheManager.storeBlob(document.id, versionId, document.fileName, freshBlob);
+              const url = URL.createObjectURL(freshBlob);
+              setBlobUrl(url);
+              setIsFromCache(false);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (corsOrNetworkErr) {
+          // If browser fetch blocked by CORS or network, fall back directly to signed URL
+          console.warn("Direct fetch bypassed, using signed iframe URL:", corsOrNetworkErr);
+          if (isMounted) {
+            setBlobUrl(targetUrl);
+            setIsFromCache(false);
+            setLoading(false);
+            return;
+          }
+        }
 
         if (isMounted) {
-          // Cache in IndexedDB
-          await PDFCacheManager.storeBlob(document.id, versionId, document.fileName, freshBlob);
-          const url = URL.createObjectURL(freshBlob);
-          setBlobUrl(url);
+          setBlobUrl(targetUrl);
           setIsFromCache(false);
           setLoading(false);
         }
