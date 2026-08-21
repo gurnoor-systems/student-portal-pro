@@ -842,7 +842,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
               </div>
 
               {/* MASTER ADMINISTRATOR CONSOLE QUICK LINK (STRICTLY FOR MASTER ADMINS) */}
-              {user.email && ["gurnoors9507@gmail.com", "gurnoor.capital@gmail.com"].includes(user.email.toLowerCase()) && (
+              {user.email && (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "").split(",").map(e => e.trim().toLowerCase()).includes(user.email.toLowerCase()) && (
                 <div className="p-3.5 bg-[#101722] border border-blue-500/30 rounded-xl flex items-center justify-between animate-in fade-in">
                   <div className="flex items-center gap-2 text-xs text-slate-300">
                     <ShieldCheck className="w-4 h-4 text-blue-400" />

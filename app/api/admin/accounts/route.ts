@@ -4,10 +4,12 @@ import path from "path";
 
 import os from "os";
 
-const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "Dhanbalgur1";
-const ALLOWED_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "gurnoors9507@gmail.com,gurnoor.capital@gmail.com")
-  .split(",")
-  .map(e => e.trim().toLowerCase());
+const getAdminSecretKey = () => process.env.ADMIN_SECRET_KEY || "";
+const getAllowedAdminEmails = () => 
+  (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
 
 function getDBFilePath(): string {
   if (process.env.VERCEL) {
@@ -56,15 +58,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { passkey, adminEmail, action, targetEmail, targetDeviceId } = body;
 
-    // Verify Master Admin Email Clearance
-    if (!adminEmail || !ALLOWED_ADMIN_EMAILS.includes(adminEmail.trim().toLowerCase())) {
+    const allowedAdminEmails = getAllowedAdminEmails();
+    const adminSecretKey = getAdminSecretKey();
+
+    // Verify Master Admin Email Clearance from Environment
+    if (!adminEmail || allowedAdminEmails.length === 0 || !allowedAdminEmails.includes(adminEmail.trim().toLowerCase())) {
       return NextResponse.json({ 
         error: `Access Denied: ${adminEmail || "Your account"} does not have Master Administrator clearance.` 
       }, { status: 403 });
     }
 
-    // Verify Master Admin Key
-    if (!passkey || passkey !== ADMIN_SECRET_KEY) {
+    // Verify Master Admin Key from Environment
+    if (!adminSecretKey || !passkey || passkey !== adminSecretKey) {
       return NextResponse.json({ error: "Unauthorized. Invalid Master Admin Passkey." }, { status: 401 });
     }
 
