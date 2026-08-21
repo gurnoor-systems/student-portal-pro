@@ -578,7 +578,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
-                  placeholder="e.g. Alex Rivera"
+                  placeholder="Enter your full name"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
                   required
                 />
@@ -592,7 +592,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@uwaterloo.ca"
+                  placeholder="yourname@university.edu"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
                   required
                 />
@@ -618,7 +618,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   autoCorrect="off"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Choose your student password (min 6 characters)"
+                  placeholder="••••••••••••"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
@@ -634,7 +634,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   autoCorrect="off"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Re-enter your chosen password"
+                  placeholder="••••••••••••"
                   className={`w-full h-11 px-3 bg-[#090d12] border text-sm text-white outline-none rounded-xl font-mono ${
                     confirmPassword && confirmPassword !== password 
                       ? "border-red-500/50 focus:border-red-500" 

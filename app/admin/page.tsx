@@ -336,34 +336,10 @@ export default function AdminConsolePage() {
                   type="email"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="gurnoors9507@gmail.com"
+                  placeholder="admin@domain.com"
                   className="w-full h-11 px-3 bg-[#080d14] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setAdminEmail("gurnoors9507@gmail.com")}
-                    className={`text-[10px] px-2.5 py-1 rounded-lg font-mono border transition-all cursor-pointer ${
-                      adminEmail === "gurnoors9507@gmail.com"
-                        ? "bg-[#1c69d4] border-[#1c69d4] text-white font-bold"
-                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    gurnoors9507@gmail.com
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAdminEmail("gurnoor.capital@gmail.com")}
-                    className={`text-[10px] px-2.5 py-1 rounded-lg font-mono border transition-all cursor-pointer ${
-                      adminEmail === "gurnoor.capital@gmail.com"
-                        ? "bg-[#1c69d4] border-[#1c69d4] text-white font-bold"
-                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    gurnoor.capital@gmail.com
-                  </button>
-                </div>
               </div>
 
               <div className="space-y-1.5">
@@ -375,7 +351,7 @@ export default function AdminConsolePage() {
                     type={showPasskey ? "text" : "password"}
                     value={passkey}
                     onChange={(e) => setPasskey(e.target.value)}
-                    placeholder="Enter admin passkey (e.g. admin2026)"
+                    placeholder="••••••••••••"
                     className="w-full h-11 pl-3 pr-10 bg-[#080d14] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                     required
                   />
@@ -386,9 +362,6 @@ export default function AdminConsolePage() {
                   >
                     {showPasskey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
-                <div className="text-[10px] text-slate-500 font-mono">
-                  Master Passkey: <span className="text-slate-300 font-bold">admin2026</span>
                 </div>
               </div>
 

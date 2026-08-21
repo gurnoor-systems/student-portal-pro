@@ -4,7 +4,7 @@ import path from "path";
 
 import os from "os";
 
-const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "admin2026";
+const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "Dhanbalgur1";
 const ALLOWED_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "gurnoors9507@gmail.com,gurnoor.capital@gmail.com")
   .split(",")
   .map(e => e.trim().toLowerCase());
