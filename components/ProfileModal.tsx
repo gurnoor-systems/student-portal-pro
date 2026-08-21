@@ -815,7 +815,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                         className="w-4 h-4 rounded text-red-600 mt-0.5"
                       />
                       <span className="leading-snug">
-                        I understand that this action is permanent and directly removes my account and data from the database.
+                        I understand that this action is permanent and it will delete my account.
                       </span>
                     </label>
 
