@@ -39,7 +39,14 @@ interface PersistentDB {
   pins: Record<string, ResetPinRecord>;
 }
 
-const DB_FILE_PATH = path.join(process.cwd(), ".student_portal_sync_db.json");
+import os from "os";
+
+function getDBFilePath(): string {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), ".student_portal_sync_db.json");
+  }
+  return path.join(process.cwd(), ".student_portal_sync_db.json");
+}
 
 function migrateAccountSchema(acc: any): StoredAccount {
   return {
@@ -77,8 +84,9 @@ function migrateAccountSchema(acc: any): StoredAccount {
 // Helper to read disk DB
 function readDiskDB(): PersistentDB {
   try {
-    if (fs.existsSync(DB_FILE_PATH)) {
-      const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
+    const dbPath = getDBFilePath();
+    if (fs.existsSync(dbPath)) {
+      const raw = fs.readFileSync(dbPath, "utf-8");
       if (raw.trim()) {
         const parsed = JSON.parse(raw);
         const migratedAccounts: Record<string, StoredAccount> = {};
@@ -102,7 +110,8 @@ function readDiskDB(): PersistentDB {
 // Helper to write disk DB
 function writeDiskDB(db: PersistentDB) {
   try {
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(db, null, 2), "utf-8");
+    const dbPath = getDBFilePath();
+    fs.writeFileSync(dbPath, JSON.stringify(db, null, 2), "utf-8");
   } catch (err) {
     console.warn("Could not write to disk DB:", err);
   }

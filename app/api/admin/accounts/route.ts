@@ -2,17 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+import os from "os";
+
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "admin2026";
 const ALLOWED_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "gurnoors9507@gmail.com,gurnoor.capital@gmail.com")
   .split(",")
   .map(e => e.trim().toLowerCase());
-const DB_FILE_PATH = path.join(process.cwd(), ".student_portal_sync_db.json");
+
+function getDBFilePath(): string {
+  if (process.env.VERCEL) {
+    return path.join(os.tmpdir(), ".student_portal_sync_db.json");
+  }
+  return path.join(process.cwd(), ".student_portal_sync_db.json");
+}
 
 // Read from database
 function getDiskAccounts() {
   try {
-    if (fs.existsSync(DB_FILE_PATH)) {
-      const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
+    const dbPath = getDBFilePath();
+    if (fs.existsSync(dbPath)) {
+      const raw = fs.readFileSync(dbPath, "utf-8");
       if (raw.trim()) {
         const parsed = JSON.parse(raw);
         return parsed.accounts || {};
@@ -27,15 +36,16 @@ function getDiskAccounts() {
 // Write back to database
 function writeDiskAccounts(accounts: any) {
   try {
+    const dbPath = getDBFilePath();
     let currentDB: any = { accounts: {}, pins: {} };
-    if (fs.existsSync(DB_FILE_PATH)) {
-      const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
+    if (fs.existsSync(dbPath)) {
+      const raw = fs.readFileSync(dbPath, "utf-8");
       if (raw.trim()) {
         currentDB = JSON.parse(raw);
       }
     }
     currentDB.accounts = accounts;
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(currentDB, null, 2), "utf-8");
+    fs.writeFileSync(dbPath, JSON.stringify(currentDB, null, 2), "utf-8");
   } catch (err) {
     console.error("Admin API disk write error:", err);
   }
