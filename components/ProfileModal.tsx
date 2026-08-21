@@ -103,7 +103,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
   // Forgot password & instant PIN recovery state
   const [isResetSending, setIsResetSending] = useState(false);
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
-  const [recoveryCode, setRecoveryCode] = useState<string | null>(null);
+  const [isResetCodeSent, setIsResetCodeSent] = useState(false);
   const [enteredCode, setEnteredCode] = useState("");
   const [recoveryNewPass, setRecoveryNewPass] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
@@ -178,7 +178,7 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   };
 
-  // Handle Send Forgot Password Reset Link + Instant PIN
+  // Handle Send Forgot Password Reset Code via Email
   const handleSendResetEmail = async () => {
     setIsResetSending(true);
     setResetFeedback(null);
@@ -186,13 +186,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const res = await sendPasswordResetEmail(user.email);
     setIsResetSending(false);
     if (res.success) {
-      if (res.resetCode) {
-        setRecoveryCode(res.resetCode);
-        setEnteredCode(res.resetCode);
-      }
-      setResetFeedback(`Password recovery dispatched to ${user.email}. Check your email or use the instant recovery code below.`);
+      setIsResetCodeSent(true);
+      setEnteredCode("");
+      setResetFeedback(`We have dispatched a 6-digit recovery code to ${user.email}. Please check your email inbox and enter the code below to reset your password.`);
     } else {
-      setResetFeedback(res.error || "Could not dispatch recovery link.");
+      setResetFeedback(res.error || "Could not dispatch recovery email.");
     }
   };
 
@@ -205,11 +203,16 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     const res = await resetPasswordWithCode(user.email, enteredCode, recoveryNewPass);
     setRecoveryLoading(false);
     if (res.success) {
-      setRecoveryFeedback({ type: "success", text: "Password successfully reset! You can now sign in with your new password." });
+      setRecoveryFeedback({ type: "success", text: "Password successfully reset! Your account credentials have been updated." });
       setRecoveryNewPass("");
-      setRecoveryCode(null);
+      setEnteredCode("");
+      setTimeout(() => {
+        setIsResetCodeSent(false);
+        setResetFeedback(null);
+        setRecoveryFeedback(null);
+      }, 3500);
     } else {
-      setRecoveryFeedback({ type: "error", text: res.error || "Could not reset password. Invalid code." });
+      setRecoveryFeedback({ type: "error", text: res.error || "Invalid or expired 6-digit recovery code." });
     }
   };
 
@@ -694,14 +697,14 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 </button>
               </form>
 
-              {/* Forgot Password / Instant PIN Recovery Box */}
+              {/* Forgot Password / Email Recovery Box */}
               <div className="p-4 bg-[#141b24] border border-white/10 rounded-xl space-y-3.5">
                 <div className="flex items-center gap-2 font-bold text-white text-xs uppercase tracking-wider">
                   <Mail className="w-4 h-4 text-[#4285F4]" />
-                  <span>Forgot Password Recovery & Instant PIN</span>
+                  <span>Email Security & Password Recovery</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Dispatch an encrypted reset link or generate an instant 6-digit recovery code for <span className="text-white font-mono font-bold">{user.email}</span>.
+                  Request a secure 6-digit recovery code delivered directly to your verified inbox at <span className="text-white font-mono font-bold">{user.email}</span>.
                 </p>
 
                 {resetFeedback && (
@@ -710,13 +713,11 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                   </div>
                 )}
 
-                {recoveryCode && (
-                  <div className="p-3.5 bg-[#090d12] border border-[#d4af37]/40 rounded-xl space-y-3 animate-in fade-in">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-slate-400 uppercase font-bold">1-TIME INSTANT RECOVERY CODE:</span>
-                      <span className="px-3 py-1 bg-[#d4af37]/20 border border-[#d4af37]/50 text-[#d4af37] font-mono font-bold text-sm tracking-[4px] rounded">
-                        {recoveryCode}
-                      </span>
+                {isResetCodeSent && (
+                  <div className="p-3.5 bg-[#090d12] border border-blue-500/40 rounded-xl space-y-3 animate-in fade-in">
+                    <div className="flex items-center gap-2 text-[11px] font-mono text-blue-400 font-bold uppercase">
+                      <Key className="w-3.5 h-3.5" />
+                      <span>ENTER 6-DIGIT CODE RECEIVED IN YOUR EMAIL:</span>
                     </div>
 
                     <form onSubmit={handleResetWithCode} className="space-y-2.5 pt-2 border-t border-white/10">
@@ -734,9 +735,10 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                         <input
                           type="text"
                           value={enteredCode}
-                          onChange={(e) => setEnteredCode(e.target.value)}
-                          placeholder="6-Digit Recovery Code"
-                          className="w-full h-9 px-3 bg-[#141b24] border border-white/15 text-white font-mono text-xs rounded-lg outline-none focus:border-[#d4af37]"
+                          onChange={(e) => setEnteredCode(e.target.value.trim())}
+                          placeholder="6-Digit Email Code"
+                          maxLength={6}
+                          className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white font-mono text-xs rounded-lg outline-none focus:border-blue-500"
                           required
                         />
                         <input
@@ -744,31 +746,40 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                           value={recoveryNewPass}
                           onChange={(e) => setRecoveryNewPass(e.target.value)}
                           placeholder="New Password (6+ chars)"
-                          className="w-full h-9 px-3 bg-[#141b24] border border-white/15 text-white text-xs rounded-lg outline-none focus:border-[#d4af37]"
+                          className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white text-xs rounded-lg outline-none focus:border-blue-500"
                           required
                         />
                       </div>
 
-                      <button
-                        type="submit"
-                        disabled={recoveryLoading}
-                        className="w-full py-2 bg-[#d4af37] hover:bg-[#b8952b] text-slate-950 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer"
-                      >
-                        {recoveryLoading ? "VERIFYING & RESETTING..." : "CONFIRM CODE & RESET PASSWORD"}
-                      </button>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="submit"
+                          disabled={recoveryLoading}
+                          className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer"
+                        >
+                          {recoveryLoading ? "VERIFYING CODE..." : "VERIFY CODE & RESET PASSWORD"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setIsResetCodeSent(false); setEnteredCode(""); setResetFeedback(null); }}
+                          className="px-3 py-2.5 border border-white/10 text-slate-400 hover:text-white text-xs rounded-lg cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
                     </form>
                   </div>
                 )}
 
-                {!recoveryCode && (
+                {!isResetCodeSent && (
                   <button
                     type="button"
                     onClick={handleSendResetEmail}
                     disabled={isResetSending}
-                    className="px-4 py-2 bg-[#1a2330] hover:bg-[#222e40] border border-white/15 text-white font-bold uppercase text-[11px] rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
+                    className="px-4 py-2.5 bg-[#1a2330] hover:bg-[#222e40] border border-white/15 text-white font-bold uppercase text-[11px] rounded-lg flex items-center gap-2 cursor-pointer transition-colors"
                   >
                     <Mail className="w-3.5 h-3.5 text-[#4285F4]" />
-                    <span>{isResetSending ? "DISPATCHING RECOVERY CODE..." : "SEND PASSWORD RESET LINK / INSTANT PIN"}</span>
+                    <span>{isResetSending ? "DISPATCHING RECOVERY EMAIL..." : "SEND 6-DIGIT RECOVERY CODE TO EMAIL"}</span>
                   </button>
                 )}
               </div>

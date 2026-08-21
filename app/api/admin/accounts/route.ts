@@ -73,15 +73,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized. Invalid Master Admin Passkey." }, { status: 401 });
     }
 
-    const memoryAccounts = global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS;
-    let accounts: Record<string, any> = {};
+    // Merge disk accounts and in-memory accounts so no registered user or admin is ever missed
+    const diskAccounts = getDiskAccounts();
+    const accounts: Record<string, any> = { ...diskAccounts };
 
+    const memoryAccounts = global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS;
     if (memoryAccounts && memoryAccounts.size > 0) {
       memoryAccounts.forEach((acc, email) => {
-        accounts[email.toLowerCase()] = acc;
+        accounts[email.toLowerCase()] = {
+          ...(accounts[email.toLowerCase()] || {}),
+          ...acc
+        };
       });
-    } else {
-      accounts = getDiskAccounts();
     }
 
     // 1. FETCH ALL ACCOUNTS & CONNECTED DEVICES

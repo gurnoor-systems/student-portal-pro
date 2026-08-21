@@ -99,8 +99,8 @@ export default function AdminConsolePage() {
     }
   }, []);
 
-  const fetchRegistry = useCallback(async (key: string, email: string) => {
-    setIsRefreshing(true);
+  const fetchRegistry = useCallback(async (key: string, email: string, silent: boolean = false) => {
+    if (!silent) setIsRefreshing(true);
     setAuthError(null);
     try {
       const res = await fetch("/api/admin/accounts", {
@@ -120,23 +120,40 @@ export default function AdminConsolePage() {
         localStorage.setItem("student_portal_admin_passkey", key);
         localStorage.setItem("student_portal_admin_email", email);
       } else {
-        setAuthError(data.error || "Invalid Master Administrator credentials");
-        setIsAuthenticated(false);
+        if (!silent) {
+          setAuthError(data.error || "Invalid Master Administrator credentials");
+          setIsAuthenticated(false);
+          localStorage.removeItem("student_portal_admin_passkey");
+          localStorage.removeItem("student_portal_admin_email");
+        }
       }
     } catch (err: any) {
-      setAuthError("Failed to connect to Admin Server API");
-      setIsAuthenticated(false);
+      if (!silent) {
+        setAuthError("Failed to connect to Admin Server API");
+        setIsAuthenticated(false);
+      }
     } finally {
-      setIsRefreshing(false);
+      if (!silent) setIsRefreshing(false);
       setIsLoading(false);
     }
   }, []);
+
+  // Periodic Real-Time Live Auto-Polling (every 4 seconds)
+  useEffect(() => {
+    if (!isAuthenticated || !passkey || !adminEmail) return;
+
+    const interval = setInterval(() => {
+      fetchRegistry(passkey, adminEmail, true);
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, passkey, adminEmail, fetchRegistry]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!passkey || !adminEmail) return;
     setIsLoading(true);
-    fetchRegistry(passkey, adminEmail);
+    fetchRegistry(passkey, adminEmail, false);
   };
 
   const handleAdminLogout = () => {
@@ -283,8 +300,13 @@ export default function AdminConsolePage() {
 
           {isAuthenticated && (
             <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-[10px] font-mono text-emerald-400">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-bold">LIVE SYNC (4s)</span>
+              </div>
+
               <button
-                onClick={() => fetchRegistry(passkey, adminEmail)}
+                onClick={() => fetchRegistry(passkey, adminEmail, false)}
                 disabled={isRefreshing}
                 className="px-3 py-1.5 bg-[#141d29] hover:bg-[#1d2a3a] border border-white/15 text-xs font-bold rounded-lg flex items-center gap-1.5 text-slate-200 transition-colors cursor-pointer"
               >

@@ -91,7 +91,7 @@ interface AuthContextType {
   deleteExam: (examId: string) => void;
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
   changePassword: (currentPass: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
-  sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; resetCode?: string; error?: string }>;
+  sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; delivered?: boolean; error?: string }>;
   resetPasswordWithCode: (email: string, code: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   rolloverSemester: (nextSemester: string, clearPreviousSubjects: boolean) => Promise<{ success: boolean; error?: string }>;
   deleteAccount: () => Promise<{ success: boolean; error?: string }>;
@@ -903,14 +903,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [user]);
 
-  const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; resetCode?: string; error?: string }> => {
+  const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; delivered?: boolean; error?: string }> => {
     if (!emailToReset) return { success: false, error: "Please enter your student email." };
     await simulateNetworkLatency(400);
 
     const trimmed = emailToReset.trim().toLowerCase();
     
-    // 1. Request Server-side PIN (Ensures PIN works across Mobile & Desktop)
-    let generatedPin = Math.floor(100000 + Math.random() * 900000).toString();
+    // 1. Request Server-side PIN (Dispatches real email and stores server PIN)
     try {
       const syncRes = await fetch("/api/auth/sync", {
         method: "POST",
@@ -921,38 +920,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
       });
       const syncData = await syncRes.json();
-      if (syncRes.ok && syncData.resetCode) {
-        generatedPin = syncData.resetCode;
+      if (!syncRes.ok) {
+        return { success: false, error: syncData.error || "Failed to dispatch recovery email." };
       }
+      return { 
+        success: true, 
+        delivered: syncData.delivered 
+      };
     } catch (syncErr) {
-      console.warn("Server PIN request error, using fallback PIN:", syncErr);
+      console.error("Server recovery request error:", syncErr);
+      return { success: false, error: "Network error connecting to recovery service." };
     }
-
-    // 2. Save local device fallback
-    try {
-      const existingPins = JSON.parse(localStorage.getItem("student_portal_reset_pins") || "{}");
-      existingPins[trimmed] = generatedPin;
-      localStorage.setItem("student_portal_reset_pins", JSON.stringify(existingPins));
-    } catch {
-      // ignore
-    }
-
-    // 3. Also attempt Supabase cloud reset if configured
-    const supabase = createClient();
-    if (supabase) {
-      try {
-        await supabase.auth.resetPasswordForEmail(trimmed, {
-          redirectTo: `${typeof window !== "undefined" ? window.location.origin : ""}/`
-        });
-      } catch {
-        // graceful fallback to PIN
-      }
-    }
-
-    return { 
-      success: true, 
-      resetCode: generatedPin 
-    };
   }, []);
 
   const resetPasswordWithCode = useCallback(async (email: string, code: string, newPass: string): Promise<{ success: boolean; error?: string }> => {

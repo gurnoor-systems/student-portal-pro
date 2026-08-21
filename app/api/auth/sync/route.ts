@@ -460,8 +460,8 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ 
         success: true, 
-        resetCode: pin,
-        delivered: emailResult.delivered 
+        delivered: emailResult.delivered,
+        message: "A 6-digit recovery code has been dispatched to your email address." 
       });
     }
 
