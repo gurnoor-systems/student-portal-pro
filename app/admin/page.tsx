@@ -289,10 +289,7 @@ export default function AdminConsolePage() {
               </div>
               <div>
                 <h1 className="text-sm font-bold tracking-tight text-white flex items-center gap-2">
-                  <span>MASTER ADMINISTRATOR CONSOLE</span>
-                  <span className="px-1.5 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-mono font-bold rounded">
-                    RESTRICTED
-                  </span>
+                  <span>ADMINISTRATOR CONSOLE</span>
                 </h1>
               </div>
             </div>
@@ -429,7 +426,7 @@ export default function AdminConsolePage() {
                   {stats.totalUsers}
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  Active student accounts in DB
+                  Registered students
                 </div>
               </div>
 
@@ -446,7 +443,7 @@ export default function AdminConsolePage() {
                   </span>
                 </div>
                 <div className="text-[11px] text-slate-400 mt-1">
-                  Concurrent active sessions
+                  Active connected devices
                 </div>
               </div>
 

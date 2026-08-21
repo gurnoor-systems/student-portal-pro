@@ -57,10 +57,10 @@ export default function Footer() {
               SECURITY & PRIVACY
             </div>
             <ul className="space-y-2 font-light">
-              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Zero-Trust Multi-Tenant Isolation</a></li>
-              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Client-Side Partitioned Cache</a></li>
-              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">IDOR-Free Security Model</a></li>
-              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">100% Free Open Access</a></li>
+              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Private Account Data</a></li>
+              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Secure Session Management</a></li>
+              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Real-time Cloud Sync</a></li>
+              <li><a href="#security" className="hover:text-[var(--primary)] transition-colors">Free for Students</a></li>
             </ul>
           </div>
 
@@ -69,7 +69,7 @@ export default function Footer() {
         {/* Sub-Footer */}
         <div className="mt-14 pt-6 border-t border-[var(--hairline)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-light text-[var(--muted)]">
           <p>© 2026 Student Portal Pro. All rights reserved.</p>
-          <p className="font-mono text-[11px]">Precision-engineered academic command center.</p>
+          <p className="font-mono text-[11px]">Built for student productivity.</p>
         </div>
 
       </div>
