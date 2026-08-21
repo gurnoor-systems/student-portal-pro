@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteFileFromCloud } from "@/lib/storage-service";
+import { deleteDocumentFromStorage } from "@/lib/storage-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,16 +13,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isDeleted = await deleteFileFromCloud(fileKey);
+    const isDeleted = await deleteDocumentFromStorage(fileKey);
 
     return NextResponse.json({
       success: isDeleted,
-      message: isDeleted ? "File deleted from cloud storage" : "Failed to delete"
+      message: isDeleted ? "File deleted from storage" : "Failed to delete"
     });
   } catch (error: any) {
-    console.error("Cloud storage deletion error:", error);
+    console.error("Storage deletion error:", error);
     return NextResponse.json(
-      { error: "Failed to delete file from cloud storage", details: error?.message },
+      { error: "Failed to delete file from storage", details: error?.message },
       { status: 500 }
     );
   }

@@ -37,6 +37,7 @@ export interface MaterialItem {
   fileKey?: string;
   fileUrl?: string;
   versionId?: string;
+  googleDriveFileId?: string;
 }
 
 export default function ClassroomsHub() {

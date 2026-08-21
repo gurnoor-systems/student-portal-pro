@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createPresignedUploadUrl } from "@/lib/storage-service";
+import { createUploadDestination } from "@/lib/storage-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,16 +13,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Safety limit: 60 MB maximum per file to prevent abuse on free tier
     const MAX_FILE_SIZE = 60 * 1024 * 1024;
     if (fileSize && fileSize > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "File exceeds 60MB limit for textbooks/documents" },
+        { error: "File exceeds 60MB limit" },
         { status: 413 }
       );
     }
 
-    const presignedData = await createPresignedUploadUrl(
+    const uploadData = await createUploadDestination(
       userId,
       fileName,
       contentType || "application/pdf"
@@ -30,12 +29,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      ...presignedData
+      ...uploadData
     });
   } catch (error: any) {
-    console.error("Presigned upload generation failed:", error);
+    console.error("Upload destination creation failed:", error);
     return NextResponse.json(
-      { error: "Failed to generate pre-signed upload ticket", details: error?.message },
+      { error: "Failed to create upload destination", details: error?.message },
       { status: 500 }
     );
   }

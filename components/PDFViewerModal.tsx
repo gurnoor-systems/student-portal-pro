@@ -28,6 +28,7 @@ interface PDFViewerModalProps {
     fileKey?: string;
     versionId?: string;
     fileSize?: string;
+    googleDriveFileId?: string;
   } | null;
 }
 
@@ -70,11 +71,15 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
 
         // 2. Fetch Pre-Signed View URL from API
         let targetUrl = document.fileUrl || "";
-        if (document.fileKey) {
+        if (document.fileKey || document.googleDriveFileId) {
           const res = await fetch("/api/storage/presigned-view", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileKey: document.fileKey, versionId })
+            body: JSON.stringify({ 
+              fileKey: document.fileKey, 
+              versionId,
+              googleDriveFileId: document.googleDriveFileId
+            })
           });
           const data = await res.json();
           if (data.viewUrl) {
