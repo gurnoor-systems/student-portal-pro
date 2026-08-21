@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import { ActiveDeviceSession } from "@/lib/types";
+import { sendPasswordResetEmailViaResend } from "@/lib/email-service";
 
 // Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Sync)
 // Supports Concurrent Multi-Device Sessions:
@@ -432,7 +433,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 7. REQUEST RESET PIN
+    // 7. REQUEST RESET PIN & DISPATCH VIA RESEND
     if (action === "request-reset") {
       const { email } = body;
       if (!email) {
@@ -450,7 +451,18 @@ export async function POST(req: NextRequest) {
       pinsStore.set(trimmedEmail, pinRecord);
       syncToDisk();
 
-      return NextResponse.json({ success: true, resetCode: pin });
+      // Look up student name if available
+      const account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
+      const studentName = account?.fullName || "Student";
+
+      // Dispatch real email via Resend
+      const emailResult = await sendPasswordResetEmailViaResend(trimmedEmail, pin, studentName);
+
+      return NextResponse.json({ 
+        success: true, 
+        resetCode: pin,
+        delivered: emailResult.delivered 
+      });
     }
 
     // 8. RESET PASSWORD WITH PIN
