@@ -18,10 +18,15 @@ import {
   X,
   Check,
   ChevronRight,
-  Download
+  Download,
+  Eye,
+  HardDrive,
+  Cloud
 } from "lucide-react";
+import PDFViewerModal from "@/components/PDFViewerModal";
+import { PDFCacheManager } from "@/lib/pdf-cache-manager";
 
-interface MaterialItem {
+export interface MaterialItem {
   id: string;
   courseCode: string;
   folderName: string;
@@ -29,6 +34,9 @@ interface MaterialItem {
   fileSize: string;
   fileType: string;
   uploadedAt: string;
+  fileKey?: string;
+  fileUrl?: string;
+  versionId?: string;
 }
 
 export default function ClassroomsHub() {
@@ -37,6 +45,9 @@ export default function ClassroomsHub() {
   // State
   const [activeCourseFilter, setActiveCourseFilter] = useState<string>("all");
   const [activeFolderName, setActiveFolderName] = useState<string>("all");
+  const [selectedDocForView, setSelectedDocForView] = useState<MaterialItem | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>(() => {
     if (!user) return [];
     try {
@@ -46,6 +57,14 @@ export default function ClassroomsHub() {
       return [];
     }
   });
+
+  // Save materials to localStorage when updated
+  const persistMaterials = (newMaterials: MaterialItem[]) => {
+    setMaterials(newMaterials);
+    if (user?.id) {
+      localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(newMaterials));
+    }
+  };
 
   // Modals
   const [isAddCourseModalOpen, setIsAddCourseModalOpen] = useState(false);
@@ -93,27 +112,92 @@ export default function ClassroomsHub() {
     setIsAddCourseModalOpen(false);
   };
 
-  const handleUploadFile = (e: React.FormEvent) => {
+  const handleUploadFile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadFileName.trim()) return;
+
+    setIsUploading(true);
+    const finalFileName = uploadFileName.endsWith(".pdf") ? uploadFileName : `${uploadFileName}.pdf`;
+    let fileKey: string | undefined = undefined;
+    let versionId = `v_${Date.now()}`;
+    let calculatedSize = attachedFile ? `${(attachedFile.size / (1024 * 1024)).toFixed(1)} MB` : "2.4 MB";
+
+    try {
+      if (user?.id) {
+        // Step 1: Request Pre-signed Upload URL (<1KB payload, bypasses Vercel 4.5MB limit)
+        const presignRes = await fetch("/api/storage/presigned-upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            fileName: finalFileName,
+            fileSize: attachedFile ? attachedFile.size : 2500000,
+            contentType: attachedFile?.type || "application/pdf"
+          })
+        });
+
+        const presignData = await presignRes.json();
+        if (presignData.success && presignData.uploadUrl) {
+          fileKey = presignData.fileKey;
+          versionId = presignData.versionId || versionId;
+
+          // Step 2: Upload directly to Cloudflare R2 if real file attached
+          if (attachedFile && !presignData.isSimulated) {
+            await fetch(presignData.uploadUrl, {
+              method: "PUT",
+              headers: { "Content-Type": attachedFile.type || "application/pdf" },
+              body: attachedFile
+            });
+
+            // Cache in local IndexedDB for immediate 0ms next view
+            await PDFCacheManager.storeBlob(
+              `mat_${Date.now()}`,
+              versionId,
+              finalFileName,
+              attachedFile
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Direct upload error, saving metadata:", error);
+    }
 
     const newFile: MaterialItem = {
       id: `mat_${Date.now()}`,
       courseCode: uploadCourseCode,
       folderName: uploadTargetFolder,
-      fileName: uploadFileName.endsWith(".pdf") ? uploadFileName : `${uploadFileName}.pdf`,
-      fileSize: "2.4 MB",
+      fileName: finalFileName,
+      fileSize: calculatedSize,
       fileType: "pdf",
-      uploadedAt: "Just now"
+      uploadedAt: "Just now",
+      fileKey,
+      versionId
     };
 
-    setMaterials(prev => [newFile, ...prev]);
+    persistMaterials([newFile, ...materials]);
     setUploadFileName("");
+    setAttachedFile(null);
+    setIsUploading(false);
     setIsUploadFileModalOpen(false);
   };
 
-  const handleDeleteFile = (id: string) => {
-    setMaterials(prev => prev.filter(m => m.id !== id));
+  const handleDeleteFile = async (id: string, fileKey?: string) => {
+    // 1. Evict from local device IndexedDB to free phone/laptop disk space
+    await PDFCacheManager.evict(id);
+
+    // 2. Delete binary from Cloudflare R2 to reclaim 10GB free tier space
+    if (fileKey) {
+      fetch("/api/storage/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileKey })
+      }).catch(() => {});
+    }
+
+    // 3. Remove from UI & local database
+    const next = materials.filter(m => m.id !== id);
+    persistMaterials(next);
   };
 
   // Filtered materials
@@ -344,6 +428,15 @@ export default function ClassroomsHub() {
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button
+                        onClick={() => setSelectedDocForView(file)}
+                        className="px-2.5 py-1 bg-[var(--primary)] text-white hover:bg-[var(--primary-active)] text-xs font-bold uppercase rounded flex items-center gap-1 transition-colors cursor-pointer"
+                        title="View / Read Document"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Read</span>
+                      </button>
+
+                      <button
                         onClick={() => {
                           const content = `# Course Material: ${file.fileName}\nCourse: ${file.courseCode}\nFolder: ${file.folderName}\nDownloaded from Student Portal Pro on ${new Date().toLocaleString()}`;
                           const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -356,16 +449,16 @@ export default function ClassroomsHub() {
                           document.body.removeChild(a);
                           URL.revokeObjectURL(url);
                         }}
-                        className="p-1.5 text-[var(--primary)] hover:bg-[var(--surface-soft)] transition-colors cursor-pointer"
+                        className="p-1.5 text-[var(--primary)] hover:bg-[var(--surface-soft)] rounded transition-colors cursor-pointer"
                         title="Download Document"
                       >
                         <Download className="w-4 h-4" />
                       </button>
 
                       <button
-                        onClick={() => handleDeleteFile(file.id)}
-                        className="p-1.5 text-[var(--muted)] hover:text-red-600 transition-colors cursor-pointer"
-                        title="Delete Material"
+                        onClick={() => handleDeleteFile(file.id, file.fileKey)}
+                        className="p-1.5 text-[var(--muted)] hover:text-red-500 rounded transition-colors cursor-pointer"
+                        title="Delete and Reclaim Storage"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -650,15 +743,45 @@ export default function ClassroomsHub() {
                 </div>
               </div>
 
-              <div className="p-4 border border-dashed border-[var(--hairline-strong)] text-center space-y-1 bg-[var(--surface-soft)]">
-                <Upload className="w-6 h-6 text-[var(--primary)] mx-auto" />
-                <div className="font-bold text-[var(--ink)]">Simulated File Attachment</div>
-                <div className="text-[10px] text-[var(--muted)] font-light">PDF, DOCX, PPTX supported up to 50MB</div>
+              <div>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  ATTACH FILE (PDF / TEXTBOOK / NOTES)
+                </label>
+                <div className="p-4 border border-dashed border-[var(--hairline-strong)] text-center space-y-2 bg-[var(--surface-soft)] rounded-lg relative">
+                  <Upload className="w-6 h-6 text-[var(--primary)] mx-auto" />
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,.ppt,.pptx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setAttachedFile(file);
+                        if (!uploadFileName) {
+                          setUploadFileName(file.name.replace(/\.[^/.]+$/, ""));
+                        }
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
+                  <div>
+                    {attachedFile ? (
+                      <div className="text-xs font-bold text-emerald-500">
+                        Selected: {attachedFile.name} ({(attachedFile.size / (1024 * 1024)).toFixed(1)} MB)
+                      </div>
+                    ) : (
+                      <>
+                        <div className="font-bold text-[var(--ink)]">Click or Drag PDF here (up to 50MB)</div>
+                        <div className="text-[10px] text-[var(--muted)] font-light">Direct Cloudflare R2 Upload • 0ms IndexedDB Cache</div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-[var(--hairline)]">
                 <button
                   type="button"
+                  disabled={isUploading}
                   onClick={() => setIsUploadFileModalOpen(false)}
                   className="bmw-btn-secondary !h-10 !text-xs !py-2"
                 >
@@ -666,15 +789,30 @@ export default function ClassroomsHub() {
                 </button>
                 <button
                   type="submit"
-                  className="bmw-btn-primary !h-10 !text-xs !py-2"
+                  disabled={isUploading}
+                  className="bmw-btn-primary !h-10 !text-xs !py-2 flex items-center gap-1.5"
                 >
-                  UPLOAD TO REPOSITORY
+                  {isUploading ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>UPLOADING...</span>
+                    </>
+                  ) : (
+                    <span>UPLOAD TO REPOSITORY</span>
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* 6. High-Performance Virtualized PDF Reader Modal with 0ms Cache */}
+      <PDFViewerModal 
+        isOpen={!!selectedDocForView}
+        onClose={() => setSelectedDocForView(null)}
+        document={selectedDocForView}
+      />
 
     </div>
   );
