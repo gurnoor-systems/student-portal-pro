@@ -150,36 +150,65 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  // Initialize session on mount (Preserves active session reliably across mobile & desktop)
+  // Initialize session on mount (Preserves active session reliably across mobile & desktop & backfills new features)
   useEffect(() => {
     try {
       const storedUser = localStorage.getItem("student_portal_active_user");
       if (storedUser) {
         const parsed: UserProfile = JSON.parse(storedUser);
         if (parsed && parsed.id && parsed.email) {
-          setUser(parsed);
-          ensureUserDataSeeded(parsed.id);
-          loadUserData(parsed.id);
+          const deviceInfo = getDeviceDetails();
+          
+          // Auto-upgrade schema for existing accounts (Feature Backfill)
+          const upgradedProfile: UserProfile = {
+            ...parsed,
+            university: parsed.university || "University of Waterloo",
+            degree: parsed.degree || "B.Tech (Bachelor of Technology)",
+            semester: parsed.semester || "Fall 2026",
+            major: parsed.major || "Computer Science",
+            densityPreference: parsed.densityPreference || "comfortable",
+            googleCalendarSynced: parsed.googleCalendarSynced ?? true,
+            activeSessions: Array.isArray(parsed.activeSessions) && parsed.activeSessions.length > 0
+              ? parsed.activeSessions.map(s => ({
+                  ...s,
+                  isCurrentDevice: s.deviceId === deviceInfo.deviceId
+                }))
+              : [{
+                  deviceId: deviceInfo.deviceId,
+                  deviceName: deviceInfo.deviceName,
+                  deviceType: deviceInfo.deviceType,
+                  browser: deviceInfo.browser,
+                  os: deviceInfo.os,
+                  loginTimestamp: parsed.lastLoginAt || new Date().toISOString(),
+                  lastActiveTimestamp: new Date().toISOString(),
+                  isCurrentDevice: true
+                }]
+          };
+
+          setUser(upgradedProfile);
+          localStorage.setItem("student_portal_active_user", JSON.stringify(upgradedProfile));
+          ensureUserDataSeeded(upgradedProfile.id);
+          loadUserData(upgradedProfile.id);
 
           // Guarantee account is recorded in local registered accounts cache
           const accounts: RegisteredAccount[] = JSON.parse(localStorage.getItem("student_portal_registered_accounts") || "[]");
-          const accExists = accounts.some(a => a.id === parsed.id || a.email.toLowerCase() === parsed.email.toLowerCase());
+          const accExists = accounts.some(a => a.id === upgradedProfile.id || a.email.toLowerCase() === upgradedProfile.email.toLowerCase());
           if (!accExists) {
             accounts.push({
-              id: parsed.id,
-              email: parsed.email.toLowerCase(),
-              passwordHash: "", // local session token
-              fullName: parsed.fullName,
-              emailVerified: parsed.emailVerified,
-              googleVerified: parsed.googleVerified,
-              university: parsed.university,
-              degree: parsed.degree,
-              major: parsed.major,
-              semester: parsed.semester,
-              googleCalendarSynced: parsed.googleCalendarSynced,
-              densityPreference: parsed.densityPreference || "comfortable",
-              provider: parsed.provider,
-              createdAt: parsed.createdAt,
+              id: upgradedProfile.id,
+              email: upgradedProfile.email.toLowerCase(),
+              passwordHash: "",
+              fullName: upgradedProfile.fullName,
+              emailVerified: upgradedProfile.emailVerified,
+              googleVerified: upgradedProfile.googleVerified,
+              university: upgradedProfile.university,
+              degree: upgradedProfile.degree,
+              major: upgradedProfile.major,
+              semester: upgradedProfile.semester,
+              googleCalendarSynced: upgradedProfile.googleCalendarSynced,
+              densityPreference: upgradedProfile.densityPreference || "comfortable",
+              provider: upgradedProfile.provider,
+              createdAt: upgradedProfile.createdAt,
               lastLoginAt: new Date().toISOString()
             });
             saveRegisteredAccounts(accounts);

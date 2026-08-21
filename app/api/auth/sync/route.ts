@@ -41,13 +41,56 @@ interface PersistentDB {
 
 const DB_FILE_PATH = path.join(process.cwd(), ".student_portal_sync_db.json");
 
+function migrateAccountSchema(acc: any): StoredAccount {
+  return {
+    id: acc.id || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+    email: (acc.email || "").trim().toLowerCase(),
+    passwordHash: acc.passwordHash || "",
+    fullName: acc.fullName || "Student",
+    university: acc.university || "University of Waterloo",
+    degree: acc.degree || "Bachelor of Technology (B.Tech)",
+    major: acc.major || "Computer Science",
+    semester: acc.semester || "Fall 2026",
+    googleCalendarSynced: acc.googleCalendarSynced ?? true,
+    densityPreference: acc.densityPreference || "comfortable",
+    createdAt: acc.createdAt || new Date().toISOString(),
+    lastLoginAt: acc.lastLoginAt || new Date().toISOString(),
+    activeSessions: Array.isArray(acc.activeSessions) && acc.activeSessions.length > 0
+      ? acc.activeSessions
+      : [{
+          deviceId: `dev_primary_${acc.id || Date.now()}`,
+          deviceName: "Primary Device • Active",
+          deviceType: "desktop",
+          browser: "Browser",
+          os: "Desktop",
+          loginTimestamp: acc.lastLoginAt || new Date().toISOString(),
+          lastActiveTimestamp: new Date().toISOString(),
+          isCurrentDevice: true
+        }],
+    courses: Array.isArray(acc.courses) ? acc.courses : [],
+    tasks: Array.isArray(acc.tasks) ? acc.tasks : [],
+    exams: Array.isArray(acc.exams) ? acc.exams : [],
+    documents: Array.isArray(acc.documents) ? acc.documents : []
+  };
+}
+
 // Helper to read disk DB
 function readDiskDB(): PersistentDB {
   try {
     if (fs.existsSync(DB_FILE_PATH)) {
       const raw = fs.readFileSync(DB_FILE_PATH, "utf-8");
       if (raw.trim()) {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        const migratedAccounts: Record<string, StoredAccount> = {};
+        if (parsed.accounts) {
+          Object.entries(parsed.accounts).forEach(([email, acc]: [string, any]) => {
+            migratedAccounts[email.toLowerCase()] = migrateAccountSchema(acc);
+          });
+        }
+        return {
+          accounts: migratedAccounts,
+          pins: parsed.pins || {}
+        };
       }
     }
   } catch (err) {
@@ -73,20 +116,9 @@ declare global {
 
 if (!global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS) {
   global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS = new Map<string, StoredAccount>();
-  const disk = readDiskDB();
-  Object.values(disk.accounts).forEach(acc => {
-    global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS?.set(acc.email.toLowerCase(), acc);
-  });
 }
-
 if (!global.__GLOBAL_STUDENT_PORTAL_PINS) {
   global.__GLOBAL_STUDENT_PORTAL_PINS = new Map<string, ResetPinRecord>();
-  const disk = readDiskDB();
-  Object.entries(disk.pins).forEach(([email, pin]) => {
-    if (pin.expiresAt > Date.now()) {
-      global.__GLOBAL_STUDENT_PORTAL_PINS?.set(email.toLowerCase(), pin);
-    }
-  });
 }
 
 const accountsStore = global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS;
@@ -104,6 +136,21 @@ function syncToDisk() {
     diskObj.pins[email] = pin;
   });
   writeDiskDB(diskObj);
+}
+
+// Initial hydration from disk DB on boot
+if (accountsStore.size === 0) {
+  const disk = readDiskDB();
+  Object.values(disk.accounts).forEach(acc => {
+    const migrated = migrateAccountSchema(acc);
+    accountsStore.set(migrated.email.toLowerCase(), migrated);
+  });
+  Object.entries(disk.pins).forEach(([email, pin]) => {
+    if (pin.expiresAt > Date.now()) {
+      pinsStore.set(email.toLowerCase(), pin);
+    }
+  });
+  syncToDisk();
 }
 
 export async function POST(req: NextRequest) {
