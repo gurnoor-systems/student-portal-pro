@@ -3,6 +3,9 @@ import fs from "fs";
 import path from "path";
 
 const ADMIN_SECRET_KEY = process.env.ADMIN_SECRET_KEY || "admin2026";
+const ALLOWED_ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "gurnoors9507@gmail.com,gurnoor.capital@gmail.com")
+  .split(",")
+  .map(e => e.trim().toLowerCase());
 const DB_FILE_PATH = path.join(process.cwd(), ".student_portal_sync_db.json");
 
 // Read from database
@@ -41,7 +44,14 @@ function writeDiskAccounts(accounts: any) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { passkey, action, targetEmail, targetDeviceId } = body;
+    const { passkey, adminEmail, action, targetEmail, targetDeviceId } = body;
+
+    // Verify Master Admin Email Clearance
+    if (!adminEmail || !ALLOWED_ADMIN_EMAILS.includes(adminEmail.trim().toLowerCase())) {
+      return NextResponse.json({ 
+        error: `Access Denied: ${adminEmail || "Your account"} does not have Master Administrator clearance.` 
+      }, { status: 403 });
+    }
 
     // Verify Master Admin Key
     if (!passkey || passkey !== ADMIN_SECRET_KEY) {

@@ -841,23 +841,30 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
                 )}
               </div>
 
-              {/* MASTER ADMINISTRATOR CONSOLE QUICK LINK */}
-              <div className="p-3.5 bg-[#101722] border border-white/10 rounded-xl flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-slate-300">
-                  <ShieldCheck className="w-4 h-4 text-blue-400" />
-                  <div>
-                    <div className="font-bold text-white">Administrator Command Center</div>
-                    <div className="text-[10px] text-slate-400">Inspect all registered student accounts, emails, and connected devices</div>
+              {/* MASTER ADMINISTRATOR CONSOLE QUICK LINK (STRICTLY FOR MASTER ADMINS) */}
+              {user.email && ["gurnoors9507@gmail.com", "gurnoor.capital@gmail.com"].includes(user.email.toLowerCase()) && (
+                <div className="p-3.5 bg-[#101722] border border-blue-500/30 rounded-xl flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-2 text-xs text-slate-300">
+                    <ShieldCheck className="w-4 h-4 text-blue-400" />
+                    <div>
+                      <div className="font-bold text-white flex items-center gap-1.5">
+                        <span>Administrator Command Center</span>
+                        <span className="px-1.5 py-0.2 bg-blue-500/20 text-blue-400 text-[9px] font-mono font-bold rounded">
+                          AUTHORIZED
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400">Inspect all registered student accounts, emails, and connected devices</div>
+                    </div>
                   </div>
+                  <a
+                    href="/admin"
+                    className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/40 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1 flex-shrink-0"
+                  >
+                    <span>Open /admin</span>
+                    <ArrowRight className="w-3 h-3" />
+                  </a>
                 </div>
-                <a
-                  href="/admin"
-                  className="px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs font-bold uppercase rounded-lg transition-colors cursor-pointer flex items-center gap-1 flex-shrink-0"
-                >
-                  <span>Open /admin</span>
-                  <ArrowRight className="w-3 h-3" />
-                </a>
-              </div>
+              )}
 
             </div>
           )}

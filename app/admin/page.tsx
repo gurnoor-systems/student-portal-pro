@@ -59,6 +59,7 @@ interface AdminUserRecord {
 }
 
 export default function AdminConsolePage() {
+  const [adminEmail, setAdminEmail] = useState("gurnoors9507@gmail.com");
   const [passkey, setPasskey] = useState("");
   const [showPasskey, setShowPasskey] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -87,14 +88,18 @@ export default function AdminConsolePage() {
 
   // Check saved passkey on mount
   useEffect(() => {
-    const saved = localStorage.getItem("student_portal_admin_passkey");
-    if (saved) {
-      setPasskey(saved);
-      fetchRegistry(saved);
+    const savedKey = localStorage.getItem("student_portal_admin_passkey");
+    const savedEmail = localStorage.getItem("student_portal_admin_email");
+    if (savedEmail) {
+      setAdminEmail(savedEmail);
+    }
+    if (savedKey && savedEmail) {
+      setPasskey(savedKey);
+      fetchRegistry(savedKey, savedEmail);
     }
   }, []);
 
-  const fetchRegistry = useCallback(async (key: string) => {
+  const fetchRegistry = useCallback(async (key: string, email: string) => {
     setIsRefreshing(true);
     setAuthError(null);
     try {
@@ -102,6 +107,7 @@ export default function AdminConsolePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adminEmail: email,
           passkey: key,
           action: "list-all"
         })
@@ -112,8 +118,9 @@ export default function AdminConsolePage() {
         setStats(data.stats || { totalUsers: 0, totalDevices: 0, totalUniversities: 0, serverTimestamp: "" });
         setIsAuthenticated(true);
         localStorage.setItem("student_portal_admin_passkey", key);
+        localStorage.setItem("student_portal_admin_email", email);
       } else {
-        setAuthError(data.error || "Invalid Master Passkey");
+        setAuthError(data.error || "Invalid Master Administrator credentials");
         setIsAuthenticated(false);
       }
     } catch (err: any) {
@@ -127,34 +134,36 @@ export default function AdminConsolePage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passkey) return;
+    if (!passkey || !adminEmail) return;
     setIsLoading(true);
-    fetchRegistry(passkey);
+    fetchRegistry(passkey, adminEmail);
   };
 
   const handleAdminLogout = () => {
     localStorage.removeItem("student_portal_admin_passkey");
+    localStorage.removeItem("student_portal_admin_email");
     setIsAuthenticated(false);
     setPasskey("");
     setUsers([]);
   };
 
-  const handleRevokeDevice = async (email: string, deviceId: string) => {
+  const handleRevokeDevice = async (targetEmail: string, deviceId: string) => {
     try {
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adminEmail,
           passkey,
           action: "revoke-device",
-          targetEmail: email,
+          targetEmail,
           targetDeviceId: deviceId
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setActionFeedback(`Revoked device session for ${email}`);
-        fetchRegistry(passkey);
+        setActionFeedback(`Revoked device session for ${targetEmail}`);
+        fetchRegistry(passkey, adminEmail);
         setTimeout(() => setActionFeedback(null), 3000);
       }
     } catch (err) {
@@ -162,21 +171,22 @@ export default function AdminConsolePage() {
     }
   };
 
-  const handleRevokeAllSessions = async (email: string) => {
+  const handleRevokeAllSessions = async (targetEmail: string) => {
     try {
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adminEmail,
           passkey,
           action: "revoke-all-sessions",
-          targetEmail: email
+          targetEmail
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setActionFeedback(`All sessions terminated for ${email}`);
-        fetchRegistry(passkey);
+        setActionFeedback(`All sessions terminated for ${targetEmail}`);
+        fetchRegistry(passkey, adminEmail);
         setTimeout(() => setActionFeedback(null), 3000);
       }
     } catch (err) {
@@ -192,6 +202,7 @@ export default function AdminConsolePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          adminEmail,
           passkey,
           action: "delete-account",
           targetEmail: userToDelete.email
@@ -201,7 +212,7 @@ export default function AdminConsolePage() {
       if (res.ok && data.success) {
         setActionFeedback(`Account ${userToDelete.email} permanently purged from database.`);
         setUserToDelete(null);
-        fetchRegistry(passkey);
+        fetchRegistry(passkey, adminEmail);
         setTimeout(() => setActionFeedback(null), 3500);
       }
     } catch (err) {
@@ -273,7 +284,7 @@ export default function AdminConsolePage() {
           {isAuthenticated && (
             <div className="flex items-center gap-3">
               <button
-                onClick={() => fetchRegistry(passkey)}
+                onClick={() => fetchRegistry(passkey, adminEmail)}
                 disabled={isRefreshing}
                 className="px-3 py-1.5 bg-[#141d29] hover:bg-[#1d2a3a] border border-white/15 text-xs font-bold rounded-lg flex items-center gap-1.5 text-slate-200 transition-colors cursor-pointer"
               >
@@ -305,7 +316,7 @@ export default function AdminConsolePage() {
               </div>
               <h2 className="text-xl font-bold text-white tracking-tight">Administrator Authentication</h2>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Enter your Master Passkey to view all registered student accounts, emails, usernames, and live connected devices.
+                Enter your authorized Administrator Email and Master Passkey to view all registered student accounts, emails, usernames, and live connected devices.
               </p>
             </div>
 
@@ -317,6 +328,44 @@ export default function AdminConsolePage() {
             )}
 
             <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-mono uppercase text-slate-300">
+                  MASTER ADMINISTRATOR EMAIL
+                </label>
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="gurnoors9507@gmail.com"
+                  className="w-full h-11 px-3 bg-[#080d14] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                  required
+                />
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setAdminEmail("gurnoors9507@gmail.com")}
+                    className={`text-[10px] px-2.5 py-1 rounded-lg font-mono border transition-all cursor-pointer ${
+                      adminEmail === "gurnoors9507@gmail.com"
+                        ? "bg-[#1c69d4] border-[#1c69d4] text-white font-bold"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    gurnoors9507@gmail.com
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminEmail("gurnoor.capital@gmail.com")}
+                    className={`text-[10px] px-2.5 py-1 rounded-lg font-mono border transition-all cursor-pointer ${
+                      adminEmail === "gurnoor.capital@gmail.com"
+                        ? "bg-[#1c69d4] border-[#1c69d4] text-white font-bold"
+                        : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    gurnoor.capital@gmail.com
+                  </button>
+                </div>
+              </div>
+
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-mono uppercase text-slate-300">
                   MASTER ADMIN PASSKEY
@@ -339,7 +388,7 @@ export default function AdminConsolePage() {
                   </button>
                 </div>
                 <div className="text-[10px] text-slate-500 font-mono">
-                  Default Master Passkey: <span className="text-slate-300 font-bold">admin2026</span>
+                  Master Passkey: <span className="text-slate-300 font-bold">admin2026</span>
                 </div>
               </div>
 
@@ -351,7 +400,7 @@ export default function AdminConsolePage() {
                 {isLoading ? (
                   <>
                     <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>VERIFYING PASSKEY...</span>
+                    <span>VERIFYING CLEARANCE...</span>
                   </>
                 ) : (
                   <>
