@@ -19,7 +19,13 @@ import {
   Video, 
   Sparkles,
   AlertCircle,
-  Calendar
+  Calendar,
+  Smartphone,
+  Laptop,
+  Tablet,
+  Radio,
+  LogOut,
+  CheckCircle2
 } from "lucide-react";
 
 interface ProfileModalProps {
@@ -62,10 +68,15 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     changePassword, 
     sendPasswordResetEmail,
     resetPasswordWithCode,
-    rolloverSemester
+    rolloverSemester,
+    revokeDeviceSession,
+    revokeAllOtherDevices,
+    refreshMultiDeviceSync
   } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<"subjects" | "security" | "profile">("subjects");
+  const [activeTab, setActiveTab] = useState<"subjects" | "security" | "devices" | "profile">("subjects");
+  const [deviceActionLoading, setDeviceActionLoading] = useState<string | null>(null);
+  const [deviceSyncFeedback, setDeviceSyncFeedback] = useState<string | null>(null);
 
   // Profile fields state
   const isCustomDegreeInitial = !POPULAR_DEGREES.slice(0, -1).includes(user?.degree || "");
@@ -239,6 +250,29 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
     }
   };
 
+  // Handle Revoke Remote Device Session
+  const handleRevokeDevice = async (deviceIdToRevoke: string) => {
+    setDeviceActionLoading(deviceIdToRevoke);
+    await revokeDeviceSession(deviceIdToRevoke);
+    setDeviceActionLoading(null);
+  };
+
+  // Handle Revoke All Other Devices
+  const handleRevokeAllOtherDevices = async () => {
+    setDeviceActionLoading("all_other");
+    await revokeAllOtherDevices();
+    setDeviceActionLoading(null);
+  };
+
+  // Handle Manual Live Sync
+  const handleManualSync = async () => {
+    setDeviceActionLoading("sync");
+    await refreshMultiDeviceSync();
+    setDeviceSyncFeedback("Synced with cloud & active devices just now!");
+    setDeviceActionLoading(null);
+    setTimeout(() => setDeviceSyncFeedback(null), 2500);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
       <div 
@@ -299,6 +333,23 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
           >
             <Lock className="w-4 h-4" />
             <span>Password & Security</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("devices")}
+            className={`py-3 px-3 sm:px-4 border-b-2 flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+              activeTab === "devices"
+                ? "border-[var(--primary)] text-[var(--primary)] font-bold"
+                : "border-transparent text-slate-400 hover:text-white"
+            }`}
+          >
+            <Smartphone className="w-4 h-4 text-[var(--primary)]" />
+            <span>Connected Devices</span>
+            {user.activeSessions && user.activeSessions.length > 0 && (
+              <span className="px-1.5 py-0.5 bg-[var(--primary)]/20 text-[var(--primary)] text-[10px] font-mono rounded-full font-bold">
+                {user.activeSessions.length}
+              </span>
+            )}
           </button>
 
           <button
@@ -710,7 +761,154 @@ export default function ProfileModal({ isOpen, onClose }: ProfileModalProps) {
             </div>
           )}
 
-          {/* TAB 3: ACADEMIC PROFILE INFO */}
+          {/* TAB 3: CONNECTED DEVICES & CONCURRENT SESSIONS */}
+          {activeTab === "devices" && (
+            <div className="space-y-6 animate-in fade-in duration-150">
+              
+              {/* Header & Live Sync Controls */}
+              <div className="p-4 bg-[#141b24] border border-white/10 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-[10px] font-mono uppercase text-[var(--primary)] font-bold flex items-center gap-1.5">
+                    <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                    <span>CONCURRENT MULTI-DEVICE SESSIONS</span>
+                  </div>
+                  <div className="text-sm font-bold text-white">
+                    Logged in on {(user.activeSessions && user.activeSessions.length) || 1} Device{((user.activeSessions && user.activeSessions.length) || 1) > 1 ? "s" : ""}
+                  </div>
+                  <div className="text-[11px] text-slate-400">
+                    You can access your portal simultaneously on your phone, laptop, iPad, and desktop with live 2-way data sync.
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={handleManualSync}
+                    disabled={deviceActionLoading === "sync"}
+                    className="px-3 py-2 bg-[#1d2633] hover:bg-[#273447] text-white border border-white/15 text-xs font-bold uppercase rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 text-[var(--primary)] ${deviceActionLoading === "sync" ? "animate-spin" : ""}`} />
+                    <span>{deviceActionLoading === "sync" ? "Syncing..." : "Sync Now"}</span>
+                  </button>
+
+                  {user.activeSessions && user.activeSessions.length > 1 && (
+                    <button
+                      onClick={handleRevokeAllOtherDevices}
+                      disabled={deviceActionLoading === "all_other"}
+                      className="px-3 py-2 bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 text-xs font-bold uppercase rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>{deviceActionLoading === "all_other" ? "Revoking..." : "Sign Out Others"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {deviceSyncFeedback && (
+                <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-mono text-xs rounded-xl flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+                  <span>{deviceSyncFeedback}</span>
+                </div>
+              )}
+
+              {/* Active Devices List */}
+              <div className="space-y-3">
+                <div className="text-[11px] font-mono text-slate-400 uppercase font-bold tracking-wider">
+                  ACTIVE SIGNED-IN DEVICES
+                </div>
+
+                <div className="space-y-2.5">
+                  {(user.activeSessions && user.activeSessions.length > 0 ? user.activeSessions : [
+                    {
+                      deviceId: "current_device",
+                      deviceName: "Current Device",
+                      deviceType: "desktop" as const,
+                      browser: "Chrome",
+                      os: "Desktop",
+                      loginTimestamp: new Date().toISOString(),
+                      lastActiveTimestamp: new Date().toISOString(),
+                      isCurrentDevice: true
+                    }
+                  ]).map((session, sIdx) => {
+                    const isCurrent = session.isCurrentDevice ?? (sIdx === 0);
+                    return (
+                      <div 
+                        key={session.deviceId || sIdx}
+                        className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                          isCurrent 
+                            ? "bg-[#101722] border-[var(--primary)]/50 shadow-sm" 
+                            : "bg-[#090d12] border-white/10 hover:border-white/20"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
+                            session.deviceType === "mobile"
+                              ? "bg-blue-500/10 border-blue-500/30 text-blue-400"
+                              : session.deviceType === "tablet"
+                                ? "bg-purple-500/10 border-purple-500/30 text-purple-400"
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                          }`}>
+                            {session.deviceType === "mobile" ? (
+                              <Smartphone className="w-5 h-5" />
+                            ) : session.deviceType === "tablet" ? (
+                              <Tablet className="w-5 h-5" />
+                            ) : (
+                              <Laptop className="w-5 h-5" />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-white text-xs">{session.deviceName}</span>
+                              {isCurrent ? (
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-mono font-bold rounded flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  ACTIVE (THIS DEVICE)
+                                </span>
+                              ) : (
+                                <span className="px-1.5 py-0.5 bg-white/10 text-slate-300 text-[9px] font-mono rounded">
+                                  CONNECTED
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[10px] font-mono text-slate-400 flex flex-wrap items-center gap-x-2">
+                              <span>Logged in: {new Date(session.loginTimestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
+                              {session.ipAddress && session.ipAddress !== "127.0.0.1" && (
+                                <span>• IP: {session.ipAddress}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!isCurrent && (
+                          <button
+                            onClick={() => handleRevokeDevice(session.deviceId)}
+                            disabled={deviceActionLoading === session.deviceId}
+                            className="px-3 py-1.5 bg-white/5 hover:bg-red-500/20 text-slate-400 hover:text-red-300 border border-white/10 hover:border-red-500/30 text-[11px] font-bold uppercase rounded-lg transition-colors cursor-pointer self-end sm:self-center"
+                          >
+                            {deviceActionLoading === session.deviceId ? "Signing Out..." : "Sign Out Device"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Real-time sync guarantee box */}
+              <div className="p-4 bg-[#090d12] border border-white/10 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-white">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>Real-Time Multi-Device State Lock-Step</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  Your tasks, syllabus deliverables, focus stats, and courses are synchronized in the background across all active sessions. Adding a task on your phone instantly reflects on your desktop without requiring manual logouts or tab refreshes.
+                </p>
+              </div>
+
+            </div>
+          )}
+
+          {/* TAB 4: ACADEMIC PROFILE INFO */}
           {activeTab === "profile" && (
             <form onSubmit={handleSaveProfile} className="space-y-4 animate-in fade-in duration-150">
               {profileFeedback && (

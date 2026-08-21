@@ -1,3 +1,15 @@
+export interface ActiveDeviceSession {
+  deviceId: string;
+  deviceName: string;
+  deviceType: "mobile" | "desktop" | "tablet";
+  ipAddress?: string;
+  browser?: string;
+  os?: string;
+  loginTimestamp: string;
+  lastActiveTimestamp: string;
+  isCurrentDevice?: boolean;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -14,6 +26,7 @@ export interface UserProfile {
   provider: "email" | "google";
   createdAt: string;
   lastLoginAt?: string;
+  activeSessions?: ActiveDeviceSession[];
 }
 
 export interface TaskItem {

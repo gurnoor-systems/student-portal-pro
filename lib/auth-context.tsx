@@ -15,10 +15,46 @@ const EMPTY_DATA: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] 
 
 const simulateNetworkLatency = (ms: number = 600) => new Promise(resolve => setTimeout(resolve, ms));
 
+export function getDeviceDetails(): { deviceId: string; deviceName: string; deviceType: "mobile" | "desktop" | "tablet"; browser: string; os: string } {
+  if (typeof window === "undefined") {
+    return { deviceId: "srv_dev", deviceName: "Server", deviceType: "desktop", browser: "Node", os: "Server" };
+  }
+  let deviceId = localStorage.getItem("student_portal_device_id");
+  if (!deviceId) {
+    deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    localStorage.setItem("student_portal_device_id", deviceId);
+  }
+  const ua = navigator.userAgent || "";
+  const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
+  const isTablet = /iPad|Tablet/i.test(ua);
+  const deviceType: "mobile" | "desktop" | "tablet" = isTablet ? "tablet" : isMobile ? "mobile" : "desktop";
+
+  let browser = "Browser";
+  if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
+  else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+  else if (ua.includes("Edg")) browser = "Edge";
+  else if (ua.includes("Firefox")) browser = "Firefox";
+
+  let os = "Desktop";
+  if (ua.includes("iPhone")) os = "iPhone";
+  else if (ua.includes("iPad")) os = "iPad";
+  else if (ua.includes("Android")) os = "Android";
+  else if (ua.includes("Windows")) os = "Windows PC";
+  else if (ua.includes("Macintosh")) os = "Mac";
+
+  const deviceName = `${os} • ${browser}`;
+
+  return { deviceId, deviceName, deviceType, browser, os };
+}
+
 interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
-  userData: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] };
+  userData: {
+    tasks: TaskItem[];
+    exams: ExamItem[];
+    courses: CourseItem[];
+  };
   signInWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string; emailUnconfirmed?: boolean }>;
   signUpWithPassword: (
     fullName: string, 
@@ -33,18 +69,18 @@ interface AuthContextType {
   ) => Promise<{ success: boolean; error?: string; confirmationEmailSent?: boolean }>;
   signInWithGoogleCustom: (
     email: string, 
-    fullName: string, 
-    university?: string, 
-    degree?: string,
-    semester?: string, 
-    major?: string,
-    initialCourses?: string[],
-    syncGoogleCalendar?: boolean
+    name: string, 
+    uni: string, 
+    deg: string, 
+    sem: string, 
+    major: string, 
+    courses?: string[], 
+    syncGoogle?: boolean
   ) => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<void>;
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   toggleGoogleCalendarSync: (enabled: boolean) => Promise<boolean>;
   toggleDensityPreference: (density: "comfortable" | "compact") => Promise<boolean>;
-  signOut: () => Promise<void>;
   getUserData: () => { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] };
   addTask: (task: Omit<TaskItem, "id" | "userId">) => TaskItem;
   updateTask: (taskId: string, updates: Partial<TaskItem>) => void;
@@ -58,6 +94,9 @@ interface AuthContextType {
   sendPasswordResetEmail: (email: string) => Promise<{ success: boolean; resetCode?: string; error?: string }>;
   resetPasswordWithCode: (email: string, code: string, newPass: string) => Promise<{ success: boolean; error?: string }>;
   rolloverSemester: (nextSemester: string, clearPreviousSubjects: boolean) => Promise<{ success: boolean; error?: string }>;
+  revokeDeviceSession: (deviceId: string) => Promise<boolean>;
+  revokeAllOtherDevices: () => Promise<boolean>;
+  refreshMultiDeviceSync: () => Promise<void>;
   getTotalRegisteredUsersCount: () => number;
 }
 
@@ -212,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Sign in with Supabase & Cross-Device Server Fallback
+  // Sign in with Supabase & Cross-Device Server Fallback (Concurrent Multi-Device)
   const signInWithPassword = async (email: string, pass: string): Promise<{ success: boolean; error?: string; emailUnconfirmed?: boolean }> => {
     await simulateNetworkLatency(400);
 
@@ -221,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
+    const deviceInfo = getDeviceDetails();
     
     // 1. Check Supabase if configured
     const supabase = createClient();
@@ -237,9 +277,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             emailUnconfirmed: true 
           };
         }
-        // If Supabase fails due to invalid credentials, check if local/server credentials match
       } else if (supaData?.user) {
-        // Supabase logged in successfully! Hydrate profile
         const meta = supaData.user.user_metadata || {};
         const profile: UserProfile = {
           id: supaData.user.id,
@@ -255,73 +293,123 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           densityPreference: meta.density_preference || "comfortable",
           provider: "email",
           createdAt: supaData.user.created_at || new Date().toISOString(),
-          lastLoginAt: new Date().toISOString()
+          lastLoginAt: new Date().toISOString(),
+          activeSessions: [{
+            deviceId: deviceInfo.deviceId,
+            deviceName: deviceInfo.deviceName,
+            deviceType: deviceInfo.deviceType,
+            browser: deviceInfo.browser,
+            os: deviceInfo.os,
+            loginTimestamp: new Date().toISOString(),
+            lastActiveTimestamp: new Date().toISOString(),
+            isCurrentDevice: true
+          }]
         };
 
         setUser(profile);
         localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
         ensureUserDataSeeded(profile.id);
         loadUserData(profile.id);
-        return { success: true };
-      }
-    }
 
-    // 2. Check Local Browser Storage
-    const accounts = getRegisteredAccounts();
-    let matchingAccount = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
-
-    // 3. Check Centralized Server Auth Sync (For Cross-Device Login between Mobile & Desktop)
-    if (!matchingAccount || matchingAccount.passwordHash !== pass) {
-      try {
-        const syncRes = await fetch("/api/auth/sync", {
+        // Notify server for multi-device sync
+        fetch("/api/auth/sync", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "login",
             email: trimmedEmail,
-            password: pass
+            password: pass,
+            deviceInfo
           })
-        });
+        }).catch(() => {});
 
-        const syncData = await syncRes.json();
-        if (syncRes.ok && syncData.success && syncData.account) {
-          // Account verified by server! Register into local device cache
-          const serverAcc = syncData.account;
-          matchingAccount = {
-            id: serverAcc.id,
-            email: serverAcc.email,
-            passwordHash: pass,
-            fullName: serverAcc.fullName,
-            emailVerified: true,
-            googleVerified: false,
-            university: serverAcc.university,
-            degree: serverAcc.degree,
-            major: serverAcc.major,
-            semester: serverAcc.semester,
-            googleCalendarSynced: serverAcc.googleCalendarSynced ?? true,
-            densityPreference: serverAcc.densityPreference || "comfortable",
-            provider: "email",
-            createdAt: serverAcc.createdAt,
-            lastLoginAt: new Date().toISOString()
-          };
-
-          const accIdx = accounts.findIndex(a => a.email.toLowerCase() === trimmedEmail);
-          if (accIdx >= 0) {
-            accounts[accIdx] = matchingAccount;
-          } else {
-            accounts.push(matchingAccount);
-          }
-          saveRegisteredAccounts(accounts);
-
-          // If server returned user data, hydrate it
-          if (syncData.userData) {
-            localStorage.setItem(`student_portal_user_${matchingAccount.id}_data`, JSON.stringify(syncData.userData));
-          }
-        }
-      } catch (syncErr) {
-        console.warn("Cross-device auth sync check error:", syncErr);
+        return { success: true };
       }
     }
+
+    // 2. Query Centralized Server Auth Sync (Multi-Device Sessions)
+    try {
+      const syncRes = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          email: trimmedEmail,
+          password: pass,
+          deviceInfo
+        })
+      });
+
+      const syncData = await syncRes.json();
+      if (syncRes.ok && syncData.success && syncData.account) {
+        const serverAcc = syncData.account;
+        const profile: UserProfile = {
+          id: serverAcc.id,
+          email: serverAcc.email,
+          fullName: serverAcc.fullName,
+          emailVerified: true,
+          googleVerified: false,
+          university: serverAcc.university,
+          degree: serverAcc.degree || "Bachelor of Technology (B.Tech)",
+          major: serverAcc.major,
+          semester: serverAcc.semester || "Fall 2026",
+          googleCalendarSynced: serverAcc.googleCalendarSynced || false,
+          densityPreference: serverAcc.densityPreference || "comfortable",
+          provider: "email",
+          createdAt: serverAcc.createdAt,
+          lastLoginAt: new Date().toISOString(),
+          activeSessions: serverAcc.activeSessions || []
+        };
+
+        const accounts = getRegisteredAccounts();
+        const accIdx = accounts.findIndex(a => a.email.toLowerCase() === trimmedEmail);
+        const registeredAcc: RegisteredAccount = {
+          id: serverAcc.id,
+          email: serverAcc.email,
+          passwordHash: pass,
+          fullName: serverAcc.fullName,
+          emailVerified: true,
+          googleVerified: false,
+          university: serverAcc.university,
+          degree: serverAcc.degree,
+          major: serverAcc.major,
+          semester: serverAcc.semester,
+          googleCalendarSynced: serverAcc.googleCalendarSynced,
+          densityPreference: serverAcc.densityPreference,
+          provider: "email",
+          createdAt: serverAcc.createdAt,
+          lastLoginAt: new Date().toISOString()
+        };
+
+        if (accIdx >= 0) {
+          accounts[accIdx] = registeredAcc;
+        } else {
+          accounts.push(registeredAcc);
+        }
+        saveRegisteredAccounts(accounts);
+
+        setUser(profile);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+
+        if (syncData.userData) {
+          localStorage.setItem(`student_portal_user_${serverAcc.id}_data`, JSON.stringify(syncData.userData));
+          setUserData(syncData.userData);
+        } else {
+          ensureUserDataSeeded(serverAcc.id);
+          loadUserData(serverAcc.id);
+        }
+
+        return { success: true };
+      } else if (syncData.error && syncData.error.includes("Incorrect password")) {
+        return { success: false, error: "Incorrect password for this student account. Please check your credentials." };
+      }
+    } catch (syncErr) {
+      console.warn("Cross-device auth sync check error:", syncErr);
+    }
+
+    // 3. Fallback to Local Storage Accounts
+    const accounts = getRegisteredAccounts();
+    const matchingAccount = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
 
     if (!matchingAccount) {
       return { 
@@ -387,6 +475,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     const trimmedEmail = email.trim().toLowerCase();
+    const deviceInfo = getDeviceDetails();
     const accounts = getRegisteredAccounts();
     const existingAccount = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
 
@@ -439,7 +528,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     accounts.push(newAccount);
     saveRegisteredAccounts(accounts);
 
-    // Sync to Server Repository (Guarantees immediate login availability on mobile)
+    // Sync to Server Repository (Guarantees immediate login availability on other devices)
     try {
       fetch("/api/auth/sync", {
         method: "POST",
@@ -447,7 +536,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           action: "register",
           account: newAccount,
-          courses: initialCourses
+          courses: initialCourses,
+          deviceInfo
         })
       }).catch(() => {});
     } catch {
@@ -468,7 +558,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       densityPreference: "comfortable",
       provider: newAccount.provider,
       createdAt: newAccount.createdAt,
-      lastLoginAt: newAccount.lastLoginAt
+      lastLoginAt: newAccount.lastLoginAt,
+      activeSessions: [{
+        deviceId: deviceInfo.deviceId,
+        deviceName: deviceInfo.deviceName,
+        deviceType: deviceInfo.deviceType,
+        browser: deviceInfo.browser,
+        os: deviceInfo.os,
+        loginTimestamp: new Date().toISOString(),
+        lastActiveTimestamp: new Date().toISOString(),
+        isCurrentDevice: true
+      }]
     };
 
     setUser(profile);
@@ -901,12 +1001,133 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const nextData = {
         ...userData,
         courses: [],
-        tasks: userData.tasks.filter(t => t.status !== "completed") // preserve only in-progress tasks if any
+        tasks: userData.tasks.filter(t => t.status !== "completed")
       };
       persistUserData(user.id, nextData);
     }
     return { success: true };
   }, [user, userData, updateProfile, persistUserData]);
+
+  // Refresh Multi-Device Sessions & State from Server
+  const refreshMultiDeviceSync = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const { deviceId } = getDeviceDetails();
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "fetch-latest",
+          email: user.email,
+          deviceId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.account) {
+        const updated = {
+          ...user,
+          ...data.account,
+          activeSessions: data.account.activeSessions || []
+        };
+        setUser(updated);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(updated));
+        if (data.userData) {
+          setUserData(data.userData);
+          localStorage.setItem(`student_portal_user_${user.id}_data`, JSON.stringify(data.userData));
+        }
+      }
+    } catch (err) {
+      console.warn("Multi-device sync fetch error:", err);
+    }
+  }, [user]);
+
+  // Revoke a specific remote device
+  const revokeDeviceSession = useCallback(async (deviceIdToRevoke: string): Promise<boolean> => {
+    if (!user?.email || !deviceIdToRevoke) return false;
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "revoke-device",
+          email: user.email,
+          deviceIdToRevoke
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updatedSessions = data.activeSessions || [];
+        const { deviceId } = getDeviceDetails();
+        const updated = {
+          ...user,
+          activeSessions: updatedSessions.map((s: any) => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
+        };
+        setUser(updated);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(updated));
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  }, [user]);
+
+  // Revoke all other devices (keep only current device active)
+  const revokeAllOtherDevices = useCallback(async (): Promise<boolean> => {
+    if (!user?.email) return false;
+    try {
+      const { deviceId } = getDeviceDetails();
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "revoke-all-other-devices",
+          email: user.email,
+          currentDeviceId: deviceId
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updatedSessions = data.activeSessions || [];
+        const updated = {
+          ...user,
+          activeSessions: updatedSessions.map((s: any) => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
+        };
+        setUser(updated);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(updated));
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  }, [user]);
+
+  // Background Auto-Sync across all concurrent devices (every 25s & on window focus)
+  useEffect(() => {
+    if (!user?.email) return;
+
+    const syncHandler = () => {
+      refreshMultiDeviceSync();
+    };
+
+    const interval = setInterval(syncHandler, 25000);
+    window.addEventListener("focus", syncHandler);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") syncHandler();
+    });
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", syncHandler);
+    };
+  }, [user?.email, refreshMultiDeviceSync]);
 
   return (
     <AuthContext.Provider value={{
@@ -933,6 +1154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sendPasswordResetEmail,
       resetPasswordWithCode,
       rolloverSemester,
+      revokeDeviceSession,
+      revokeAllOtherDevices,
+      refreshMultiDeviceSync,
       getTotalRegisteredUsersCount
     }}>
       {children}

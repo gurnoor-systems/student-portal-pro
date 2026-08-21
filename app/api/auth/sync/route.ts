@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { ActiveDeviceSession } from "@/lib/types";
 
 // Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Sync)
-// Guarantees 100% persistent cross-device authentication:
-// - Register on Mobile -> Immediately sign in on Desktop
-// - Register on Desktop -> Immediately sign in on Mobile
-// - Change password on one device -> Instantly updated on all devices
-// - Survives server restarts, cold starts, and network reconnects.
+// Supports Concurrent Multi-Device Sessions:
+// - Students can be logged in simultaneously on Phone, Tablet, Laptop, and Desktop.
+// - Logging in on Device B keeps Device A active with real-time state synchronization.
+// - View active devices and remotely revoke sessions if needed.
 
 interface StoredAccount {
   id: string;
@@ -22,6 +22,7 @@ interface StoredAccount {
   densityPreference?: "comfortable" | "compact";
   createdAt: string;
   lastLoginAt?: string;
+  activeSessions?: ActiveDeviceSession[];
   courses?: any[];
   tasks?: any[];
   exams?: any[];
@@ -72,7 +73,6 @@ declare global {
 
 if (!global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS) {
   global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS = new Map<string, StoredAccount>();
-  // Hydrate from disk on boot
   const disk = readDiskDB();
   Object.values(disk.accounts).forEach(acc => {
     global.__GLOBAL_STUDENT_PORTAL_ACCOUNTS?.set(acc.email.toLowerCase(), acc);
@@ -111,15 +111,31 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action } = body;
 
-    // 1. REGISTER ACCOUNT (Mobile <-> Desktop Cross-Device Sync)
+    // Helper to get client IP / User-Agent
+    const userAgent = req.headers.get("user-agent") || "";
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0] || "127.0.0.1";
+
+    // 1. REGISTER ACCOUNT (Cross-device registration)
     if (action === "register") {
-      const { account, courses } = body;
+      const { account, courses, deviceInfo } = body;
       if (!account || !account.email) {
         return NextResponse.json({ error: "Invalid account payload" }, { status: 400 });
       }
 
       const email = account.email.trim().toLowerCase();
       const existing = accountsStore.get(email);
+
+      const deviceSession: ActiveDeviceSession = {
+        deviceId: deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        deviceName: deviceInfo?.deviceName || (userAgent.includes("Mobile") ? "Mobile Device" : "Desktop Computer"),
+        deviceType: deviceInfo?.deviceType || (userAgent.includes("Mobile") ? "mobile" : "desktop"),
+        ipAddress: ip,
+        browser: deviceInfo?.browser || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Browser"),
+        os: deviceInfo?.os || (userAgent.includes("iPhone") ? "iOS" : userAgent.includes("Android") ? "Android" : userAgent.includes("Windows") ? "Windows" : "macOS"),
+        loginTimestamp: new Date().toISOString(),
+        lastActiveTimestamp: new Date().toISOString(),
+        isCurrentDevice: true
+      };
 
       const record: StoredAccount = {
         id: account.id || existing?.id || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
@@ -134,6 +150,7 @@ export async function POST(req: NextRequest) {
         densityPreference: account.densityPreference || "comfortable",
         createdAt: account.createdAt || new Date().toISOString(),
         lastLoginAt: new Date().toISOString(),
+        activeSessions: [deviceSession],
         courses: courses || existing?.courses || [],
         tasks: existing?.tasks || [],
         exams: existing?.exams || [],
@@ -143,12 +160,12 @@ export async function POST(req: NextRequest) {
       accountsStore.set(email, record);
       syncToDisk();
 
-      return NextResponse.json({ success: true, account: record });
+      return NextResponse.json({ success: true, account: record, deviceSession });
     }
 
-    // 2. LOGIN (Mobile <-> Desktop Cross-Device Credential Verification)
+    // 2. LOGIN (Concurrent Multi-Device Session Addition)
     if (action === "login") {
-      const { email, password } = body;
+      const { email, password, deviceInfo } = body;
       if (!email || !password) {
         return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
       }
@@ -156,7 +173,6 @@ export async function POST(req: NextRequest) {
       const trimmedEmail = email.trim().toLowerCase();
       let account = accountsStore.get(trimmedEmail);
 
-      // Check disk if memory missed
       if (!account) {
         const disk = readDiskDB();
         account = disk.accounts[trimmedEmail];
@@ -180,12 +196,35 @@ export async function POST(req: NextRequest) {
         }, { status: 401 });
       }
 
+      const deviceId = deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newSession: ActiveDeviceSession = {
+        deviceId,
+        deviceName: deviceInfo?.deviceName || (userAgent.includes("Mobile") ? "Mobile Phone" : "Desktop Computer"),
+        deviceType: deviceInfo?.deviceType || (userAgent.includes("Mobile") ? "mobile" : "desktop"),
+        ipAddress: ip,
+        browser: deviceInfo?.browser || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Browser"),
+        os: deviceInfo?.os || (userAgent.includes("iPhone") ? "iOS" : userAgent.includes("Android") ? "Android" : userAgent.includes("Windows") ? "Windows" : "macOS"),
+        loginTimestamp: new Date().toISOString(),
+        lastActiveTimestamp: new Date().toISOString()
+      };
+
+      // Concurrent Multi-Device Session handling (updates existing device or appends new device without kicking out others)
+      const existingSessions = account.activeSessions || [];
+      const sessionIdx = existingSessions.findIndex(s => s.deviceId === deviceId);
+      if (sessionIdx >= 0) {
+        existingSessions[sessionIdx] = { ...existingSessions[sessionIdx], ...newSession, lastActiveTimestamp: new Date().toISOString() };
+      } else {
+        existingSessions.push(newSession);
+      }
+
+      account.activeSessions = existingSessions;
       account.lastLoginAt = new Date().toISOString();
       accountsStore.set(trimmedEmail, account);
       syncToDisk();
 
       return NextResponse.json({ 
         success: true, 
+        currentDeviceId: deviceId,
         account: {
           id: account.id,
           email: account.email,
@@ -198,7 +237,11 @@ export async function POST(req: NextRequest) {
           densityPreference: account.densityPreference,
           provider: "email",
           createdAt: account.createdAt,
-          lastLoginAt: account.lastLoginAt
+          lastLoginAt: account.lastLoginAt,
+          activeSessions: existingSessions.map(s => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
         },
         userData: {
           courses: account.courses || [],
@@ -209,7 +252,101 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. CHANGE PASSWORD (Mobile <-> Desktop Instant Password Sync)
+    // 3. FETCH LATEST / HEARTBEAT (Real-time Cross-Device Sync)
+    if (action === "fetch-latest" || action === "heartbeat") {
+      const { email, deviceId } = body;
+      if (!email) {
+        return NextResponse.json({ error: "Email is required" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail);
+
+      if (!account) {
+        const disk = readDiskDB();
+        account = disk.accounts[trimmedEmail];
+      }
+
+      if (!account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      }
+
+      // Touch lastActive for this device
+      if (deviceId && account.activeSessions) {
+        const dev = account.activeSessions.find(s => s.deviceId === deviceId);
+        if (dev) {
+          dev.lastActiveTimestamp = new Date().toISOString();
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        account: {
+          id: account.id,
+          email: account.email,
+          fullName: account.fullName,
+          university: account.university,
+          degree: account.degree,
+          major: account.major,
+          semester: account.semester,
+          googleCalendarSynced: account.googleCalendarSynced,
+          densityPreference: account.densityPreference,
+          provider: "email",
+          createdAt: account.createdAt,
+          lastLoginAt: account.lastLoginAt,
+          activeSessions: (account.activeSessions || []).map(s => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
+        },
+        userData: {
+          courses: account.courses || [],
+          tasks: account.tasks || [],
+          exams: account.exams || [],
+          documents: account.documents || []
+        }
+      });
+    }
+
+    // 4. REVOKE DEVICE SESSION
+    if (action === "revoke-device") {
+      const { email, deviceIdToRevoke } = body;
+      if (!email || !deviceIdToRevoke) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail);
+
+      if (account && account.activeSessions) {
+        account.activeSessions = account.activeSessions.filter(s => s.deviceId !== deviceIdToRevoke);
+        accountsStore.set(trimmedEmail, account);
+        syncToDisk();
+      }
+
+      return NextResponse.json({ success: true, activeSessions: account?.activeSessions || [] });
+    }
+
+    // 5. REVOKE ALL OTHER SESSIONS (Keep current device only)
+    if (action === "revoke-all-other-devices") {
+      const { email, currentDeviceId } = body;
+      if (!email || !currentDeviceId) {
+        return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail);
+
+      if (account && account.activeSessions) {
+        account.activeSessions = account.activeSessions.filter(s => s.deviceId === currentDeviceId);
+        accountsStore.set(trimmedEmail, account);
+        syncToDisk();
+      }
+
+      return NextResponse.json({ success: true, activeSessions: account?.activeSessions || [] });
+    }
+
+    // 6. CHANGE PASSWORD (Instant Sync Across All Devices)
     if (action === "change-password") {
       const { email, currentPassword, newPassword } = body;
       if (!email || !newPassword || newPassword.length < 6) {
@@ -239,7 +376,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 4. REQUEST RESET PIN (Mobile <-> Desktop Cross-Device PIN Generator)
+    // 7. REQUEST RESET PIN
     if (action === "request-reset") {
       const { email } = body;
       if (!email) {
@@ -251,7 +388,7 @@ export async function POST(req: NextRequest) {
       
       const pinRecord: ResetPinRecord = {
         code: pin,
-        expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutes validity
+        expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutes
       };
 
       pinsStore.set(trimmedEmail, pinRecord);
@@ -260,7 +397,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, resetCode: pin });
     }
 
-    // 5. RESET PASSWORD WITH PIN (Mobile <-> Desktop Instant Reset)
+    // 8. RESET PASSWORD WITH PIN
     if (action === "reset-password") {
       const { email, code, newPassword } = body;
       if (!email || !code || !newPassword) {
@@ -296,7 +433,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 6. SYNC USER DATA (Cross-device tasks, exams, documents sync)
+    // 9. SYNC USER DATA (Cross-device tasks, exams, documents)
     if (action === "sync-data") {
       const { email, userData } = body;
       if (!email || !userData) {
