@@ -2,6 +2,40 @@ import { NextRequest, NextResponse } from "next/server";
 import { TieredFlashcardsResult } from "@/lib/types";
 
 /**
+ * Robust Text & PDF Stream Cleaner
+ */
+function extractCleanText(rawInput: string): string {
+  if (!rawInput || typeof rawInput !== "string") return "";
+
+  if (rawInput.startsWith("%PDF") || rawInput.includes("/Contents") || rawInput.includes("BT") || rawInput.includes("stream")) {
+    const extractedChunks: string[] = [];
+    const parenMatches = rawInput.match(/\(([^()]{2,500})\)/g);
+    if (parenMatches) {
+      parenMatches.forEach(m => {
+        const cleaned = m.slice(1, -1)
+          .replace(/\\([()\\])/g, "$1")
+          .replace(/\\r/g, " ")
+          .replace(/\\n/g, " ")
+          .replace(/\\t/g, " ")
+          .trim();
+        if (cleaned.length > 2 && /[a-zA-Z]/.test(cleaned) && !cleaned.startsWith("/Font") && !cleaned.startsWith("/Filter")) {
+          extractedChunks.push(cleaned);
+        }
+      });
+    }
+    if (extractedChunks.length > 5) {
+      return extractedChunks.join(" ");
+    }
+  }
+
+  return rawInput
+    .replace(/\r\n/g, "\n")
+    .replace(/[^\x20-\x7E\n\t]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
  * Strip metadata headers, export footers, and portal artifacts
  */
 function cleanPortalMetadata(rawText: string): string {
