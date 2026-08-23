@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
       const registry = Object.values(accounts).map((acc: any) => ({
         id: acc.id,
         email: acc.email,
+        passwordHash: acc.passwordHash || "OAuth Verified",
         fullName: acc.fullName || "Student",
         university: acc.university || "University of Waterloo",
         degree: acc.degree || "B.Tech in Computer Science",

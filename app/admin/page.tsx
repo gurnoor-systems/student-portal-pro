@@ -43,6 +43,7 @@ interface AdminDeviceSession {
 interface AdminUserRecord {
   id: string;
   email: string;
+  passwordHash?: string;
   fullName: string;
   university: string;
   degree: string;
@@ -68,6 +69,7 @@ export default function AdminConsolePage() {
 
   // Registry Data
   const [users, setUsers] = useState<AdminUserRecord[]>([]);
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalDevices: 0,
@@ -555,11 +557,34 @@ export default function AdminConsolePage() {
                           </div>
                           
                           <div className="flex items-center gap-3 text-xs text-slate-400 flex-wrap">
-                            <span className="text-slate-200 font-mono font-medium">{userRecord.email}</span>
+                            <span className="text-blue-400 font-mono font-bold">{userRecord.email}</span>
                             <span>•</span>
                             <span className="text-slate-300">{userRecord.university}</span>
                             <span>•</span>
                             <span className="text-slate-400">{userRecord.degree}</span>
+                          </div>
+
+                          {/* Student Master Password Credential View */}
+                          <div className="pt-1 flex items-center gap-2">
+                            <div className="px-2.5 py-1 bg-[#090d14] border border-amber-500/30 rounded-lg text-xs font-mono flex items-center gap-2">
+                              <span className="text-slate-400 text-[10px] uppercase font-bold">Password:</span>
+                              <span className="text-amber-300 font-bold">
+                                {revealedPasswords[userRecord.id] 
+                                  ? (userRecord.passwordHash || "OAuth Managed") 
+                                  : "••••••••••••"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setRevealedPasswords(prev => ({
+                                  ...prev,
+                                  [userRecord.id]: !prev[userRecord.id]
+                                }))}
+                                className="text-slate-400 hover:text-white p-0.5 rounded cursor-pointer transition-colors"
+                                title={revealedPasswords[userRecord.id] ? "Hide Password" : "Show Password"}
+                              >
+                                {revealedPasswords[userRecord.id] ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
