@@ -356,7 +356,7 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
                       {ex.title}
                     </div>
                     <div className="text-[11px] text-[var(--muted)] font-light">
-                      📍 {ex.location}
+                      📍 {ex.location || "To Be Announced"}
                     </div>
                   </div>
                 ))}

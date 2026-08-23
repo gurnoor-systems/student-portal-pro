@@ -49,11 +49,11 @@ export default function ExamsHub() {
 
     addExam({
       title: newExamTitle.trim(),
-      courseCode: newCourseCode,
+      courseCode: newCourseCode.trim() || (userData.courses[0]?.courseCode || "GEN 101"),
       examDate: new Date(newExamDate).toISOString(),
-      weightPercent: Number(newWeight),
-      location: newLocation.trim() || "Main Examination Hall",
-      topics: newTopics ? newTopics.split(",").map(t => t.trim()) : ["Core Course Modules"]
+      weightPercent: Number(newWeight) || 30,
+      location: newLocation.trim() || "To Be Announced",
+      topics: newTopics.trim() ? newTopics.split(",").map(t => t.trim()).filter(Boolean) : ["Comprehensive Semester Syllabus"]
     });
 
     setNewExamTitle("");
@@ -209,7 +209,7 @@ export default function ExamsHub() {
                   </div>
 
                   <div className="p-3 bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs text-[var(--ink)] font-light space-y-1">
-                    <div>Location: <strong className="font-semibold text-[var(--ink)]">{exam.location}</strong></div>
+                    <div>Location: <strong className="font-semibold text-[var(--ink)]">{exam.location || "To Be Announced"}</strong></div>
                     <div className="pt-1 flex flex-wrap gap-1.5">
                       {exam.topics.map((t, idx) => (
                         <span key={idx} className="px-2 py-0.5 bg-[var(--canvas)] border border-[var(--hairline)] text-[10px] font-semibold text-[var(--primary)]">
@@ -356,74 +356,130 @@ export default function ExamsHub() {
             </div>
 
             <form onSubmit={handleAddExam} className="space-y-4 text-xs">
+              {/* 1. Exam Title */}
               <div>
-                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">EXAM TITLE</label>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  EXAM TITLE
+                </label>
                 <input
                   type="text"
                   required
                   value={newExamTitle}
                   onChange={(e) => setNewExamTitle(e.target.value)}
-                  placeholder="e.g. Operating Systems Final Exam"
+                  placeholder="e.g. Operating Systems Final Exam / Algorithms Midterm"
                   className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">COURSE</label>
+              {/* 2. Course / Subject Selection (Registered Courses Helper + Custom Entry) */}
+              <div>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  COURSE / SUBJECT
+                </label>
+                <div className="space-y-1.5">
                   <select
-                    value={newCourseCode}
-                    onChange={(e) => setNewCourseCode(e.target.value)}
-                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] font-bold outline-none"
+                    value={userData.courses.some(c => c.courseCode === newCourseCode) ? newCourseCode : "CUSTOM"}
+                    onChange={(e) => {
+                      if (e.target.value !== "CUSTOM") {
+                        setNewCourseCode(e.target.value);
+                      } else {
+                        setNewCourseCode("");
+                      }
+                    }}
+                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] font-semibold outline-none focus:border-[var(--primary)] text-xs"
                   >
                     {userData.courses.map(c => (
-                      <option key={c.id} value={c.courseCode}>#{c.courseCode}</option>
+                      <option key={c.id} value={c.courseCode}>
+                        {c.courseCode} - {c.courseName}
+                      </option>
                     ))}
+                    <option value="CUSTOM">+ Enter Custom Course Code / Name...</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">WEIGHT (% OF GRADE)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={newWeight}
-                    onChange={(e) => setNewWeight(Number(e.target.value))}
-                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
-                  />
+                  {(!userData.courses.some(c => c.courseCode === newCourseCode) || newCourseCode === "") && (
+                    <input
+                      type="text"
+                      value={newCourseCode}
+                      onChange={(e) => setNewCourseCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. CS 452 (Custom Code)"
+                      className="w-full h-9 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] font-mono text-xs outline-none focus:border-[var(--primary)]"
+                    />
+                  )}
                 </div>
               </div>
 
+              {/* 3. Exam Date & Time */}
               <div>
-                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">EXAM DATE & TIME</label>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  EXAM DATE & TIME
+                </label>
                 <input
                   type="datetime-local"
                   required
                   value={newExamDate}
                   onChange={(e) => setNewExamDate(e.target.value)}
-                  className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
+                  className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)] font-mono"
                 />
               </div>
 
+              {/* 4. Weight (% of Grade) with 1-Click Preset Chips */}
               <div>
-                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">LOCATION / HALL</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-bold uppercase tracking-wider text-[var(--ink)]">
+                    WEIGHT (% OF GRADE)
+                  </label>
+                  <span className="text-[11px] font-mono text-[var(--primary)] font-bold">{newWeight}%</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((pct) => (
+                    <button
+                      key={pct}
+                      type="button"
+                      onClick={() => setNewWeight(pct)}
+                      className={`px-2.5 py-1 text-[11px] font-mono font-bold border transition-colors cursor-pointer rounded ${
+                        newWeight === pct
+                          ? "bg-[var(--primary)] text-white border-[var(--primary)]"
+                          : "bg-[var(--surface-soft)] border-[var(--hairline)] text-[var(--ink)] hover:border-[var(--primary)]"
+                      }`}
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
                 <input
-                  type="text"
-                  value={newLocation}
-                  onChange={(e) => setNewLocation(e.target.value)}
-                  placeholder="e.g. Davis Centre Hall 1350"
-                  className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={newWeight}
+                  onChange={(e) => setNewWeight(Number(e.target.value))}
+                  placeholder="Or enter custom percentage (1-100)"
+                  className="w-full h-9 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] font-mono outline-none focus:border-[var(--primary)]"
                 />
               </div>
 
+              {/* 5. Topics Covered (Syllabus) (Optional) */}
               <div>
-                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">TOPICS COVERED (COMMA SEPARATED)</label>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  TOPICS COVERED (SYLLABUS) (OPTIONAL)
+                </label>
                 <input
                   type="text"
                   value={newTopics}
                   onChange={(e) => setNewTopics(e.target.value)}
                   placeholder="e.g. Virtual Memory, Deadlocks, Paging"
+                  className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
+                />
+              </div>
+
+              {/* 6. Location (Optional) */}
+              <div>
+                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">
+                  LOCATION (OPTIONAL)
+                </label>
+                <input
+                  type="text"
+                  value={newLocation}
+                  onChange={(e) => setNewLocation(e.target.value)}
+                  placeholder="e.g. Davis Centre Hall 1350 or Online (Defaults to 'To Be Announced')"
                   className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
                 />
               </div>
