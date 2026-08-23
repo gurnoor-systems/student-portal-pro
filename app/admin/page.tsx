@@ -105,13 +105,22 @@ export default function AdminConsolePage() {
     if (!silent) setIsRefreshing(true);
     setAuthError(null);
     try {
+      let clientAccounts: any[] = [];
+      try {
+        const localRaw = localStorage.getItem("student_portal_registered_accounts");
+        if (localRaw) {
+          clientAccounts = JSON.parse(localRaw);
+        }
+      } catch {}
+
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           adminEmail: email,
           passkey: key,
-          action: "list-all"
+          action: "list-all",
+          clientAccounts
         })
       });
       const data = await res.json();

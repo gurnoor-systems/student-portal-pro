@@ -87,6 +87,48 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Merge any client-provided accounts into server database
+    if (Array.isArray(body.clientAccounts)) {
+      body.clientAccounts.forEach((acc: any) => {
+        if (acc && acc.email) {
+          const emailKey = acc.email.trim().toLowerCase();
+          accounts[emailKey] = {
+            ...(accounts[emailKey] || {}),
+            ...acc
+          };
+        }
+      });
+      writeDiskAccounts(accounts);
+    }
+
+    // Always ensure the logged-in Administrator email is present in the registry
+    const cleanAdminEmail = adminEmail.trim().toLowerCase();
+    if (!accounts[cleanAdminEmail]) {
+      accounts[cleanAdminEmail] = {
+        id: `usr_admin_${Date.now()}`,
+        email: cleanAdminEmail,
+        passwordHash: adminSecretKey ? `Master Passkey Protected (${adminSecretKey.substring(0, 4)}••••)` : "Master Admin Clearance",
+        fullName: "Gurnoor Singh (Administrator)",
+        university: "University of Waterloo",
+        degree: "B.Tech in Computer Science",
+        major: "Computer Science",
+        semester: "Fall 2026",
+        googleCalendarSynced: true,
+        createdAt: new Date().toISOString(),
+        lastLoginAt: new Date().toISOString(),
+        activeSessions: [{
+          deviceId: `dev_admin_${Date.now()}`,
+          deviceName: "Master Admin Console • Active",
+          deviceType: "desktop",
+          browser: "Admin Dashboard",
+          os: "Primary Workstation",
+          loginTimestamp: new Date().toISOString(),
+          lastActiveTimestamp: new Date().toISOString()
+        }]
+      };
+      writeDiskAccounts(accounts);
+    }
+
     // 1. FETCH ALL ACCOUNTS & CONNECTED DEVICES
     if (!action || action === "list-all") {
       const registry = Object.values(accounts).map((acc: any) => ({
