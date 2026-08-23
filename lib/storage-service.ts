@@ -33,7 +33,7 @@ export async function createUploadDestination(
 ): Promise<StorageUploadResponse> {
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const versionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const fileKey = `${userId}/${Date.now()}_${sanitizedName}`;
+  const fileKey = `${Date.now()}_${sanitizedName}`;
 
   const supabase = getSupabase();
   if (!supabase) {
@@ -46,14 +46,14 @@ export async function createUploadDestination(
   }
 
   try {
-    const { data: pubData } = supabase.storage
+    const { data: signedData } = await supabase.storage
       .from(STORAGE_BUCKET)
-      .getPublicUrl(fileKey);
+      .createSignedUrl(fileKey, 7200);
 
     return {
       uploadUrl: `/api/storage/upload`,
       fileKey,
-      publicViewUrl: pubData?.publicUrl || "",
+      publicViewUrl: signedData?.signedUrl || "",
       versionId,
       storageProvider: "supabase"
     };
@@ -68,6 +68,7 @@ export async function createUploadDestination(
 
 /**
  * Creates a signed view URL for Supabase Storage or Google Drive fileId.
+ * Generates an authenticated signed URL so it works seamlessly for BOTH private & public buckets.
  */
 export async function createDocumentViewUrl(
   fileKey: string,
@@ -92,6 +93,20 @@ export async function createDocumentViewUrl(
   }
 
   try {
+    // 1. Generate an authenticated 2-hour signed URL (Bypasses private bucket / RLS restrictions)
+    const { data: signedData, error: signError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(fileKey, 7200);
+
+    if (signedData?.signedUrl) {
+      return {
+        viewUrl: signedData.signedUrl,
+        versionId,
+        storageProvider: "supabase"
+      };
+    }
+
+    // 2. Fallback to public URL if signed URL unavailable
     const { data: pubData } = supabase.storage
       .from(STORAGE_BUCKET)
       .getPublicUrl(fileKey);
@@ -99,18 +114,6 @@ export async function createDocumentViewUrl(
     if (pubData?.publicUrl) {
       return {
         viewUrl: pubData.publicUrl,
-        versionId,
-        storageProvider: "supabase"
-      };
-    }
-
-    const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUrl(fileKey, 3600);
-
-    if (data?.signedUrl) {
-      return {
-        viewUrl: data.signedUrl,
         versionId,
         storageProvider: "supabase"
       };

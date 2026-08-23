@@ -67,7 +67,11 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      // Retrieve public view URL
+      // Retrieve authenticated signed view URL (works for both private and public buckets)
+      const { data: signedData } = await supabase.client.storage
+        .from(supabase.bucketName)
+        .createSignedUrl(fileKey, 7200);
+
       const { data: urlData } = supabase.client.storage
         .from(supabase.bucketName)
         .getPublicUrl(fileKey);
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         success: true,
         fileKey,
-        fileUrl: urlData?.publicUrl || "",
+        fileUrl: signedData?.signedUrl || urlData?.publicUrl || "",
         versionId,
         storageProvider: "supabase"
       });
