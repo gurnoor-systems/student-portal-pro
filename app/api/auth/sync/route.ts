@@ -243,14 +243,14 @@ export async function POST(req: NextRequest) {
           success: false, 
           notFound: true,
           error: "Account not registered. Please switch to 'Create Account' to register your student profile first." 
-        }, { status: 404 });
+        }, { status: 200 });
       }
 
       if (account.passwordHash !== password) {
         return NextResponse.json({ 
           success: false, 
-          error: "Incorrect password for this student account." 
-        }, { status: 401 });
+          error: "Incorrect password for this student account. Please check your credentials." 
+        }, { status: 200 });
       }
 
       const deviceId = deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
