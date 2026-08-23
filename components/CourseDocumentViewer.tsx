@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { ParsedSyllabusResult, ParsedDeliverable, ParsedExam } from "@/lib/types";
+import { parseDocumentFile } from "@/lib/document-parser";
 import { 
   FileText, 
   Download, 
@@ -226,24 +227,23 @@ export default function CourseDocumentViewer() {
   // SYLLABUS PARSING HANDLERS
   // =========================================================================
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setSelectedFileName(file.name);
     setParseError("");
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        setSyllabusInputText(text);
+    try {
+      const parsed = await parseDocumentFile(file);
+      if (parsed.text.trim()) {
+        setSyllabusInputText(parsed.text);
+      } else {
+        setParseError("Could not extract text from document. Please paste syllabus text directly.");
       }
-    };
-    reader.onerror = () => {
+    } catch {
       setParseError("Could not read uploaded document file. Please paste text directly.");
-    };
-    reader.readAsText(file);
+    }
   };
 
   const handleLoadSample = () => {

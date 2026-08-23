@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { Flashcard, TieredFlashcardsResult } from "@/lib/types";
+import { parseDocumentFile } from "@/lib/document-parser";
 
 export default function FlashcardsHub() {
   const { user, userData } = useAuth();
@@ -80,36 +81,21 @@ export default function FlashcardsHub() {
   // Filter saved docs by user context
   const savedDocuments = savedDocsList;
 
-  const handleDirectDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDirectDocUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const raw = (event.target?.result as string) || "";
-      if (!raw.trim()) return;
-
-      // Extract readable human text if file is raw PDF binary stream
-      let contentText = raw;
-      if (raw.startsWith("%PDF") || raw.includes("stream") || raw.includes("/Contents")) {
-        const parenMatches = raw.match(/\(([^()]{2,500})\)/g);
-        if (parenMatches) {
-          const chunks = parenMatches
-            .map(m => m.slice(1, -1).replace(/\\([()\\])/g, "$1").trim())
-            .filter(s => s.length > 2 && /[a-zA-Z]/.test(s) && !s.startsWith("/Font") && !s.startsWith("/Filter"));
-          if (chunks.length > 5) {
-            contentText = chunks.join(" ");
-          }
-        }
-      }
+    try {
+      const parsedDoc = await parseDocumentFile(file);
+      if (!parsedDoc.text.trim()) return;
 
       const newDoc = {
         id: `doc_${Date.now()}`,
         courseCode: aiCourseCode,
         title: file.name,
-        type: "Course Notes",
-        pageCount: 1,
-        content: [contentText]
+        type: file.name.endsWith(".pdf") ? "Lecture Slides" : "Course Notes",
+        pageCount: parsedDoc.pageCount,
+        content: [parsedDoc.text]
       };
 
       const next = [newDoc, ...savedDocsList];
@@ -120,9 +106,9 @@ export default function FlashcardsHub() {
         name: file.name,
         size: `${Math.round(file.size / 1024)} KB`
       });
-    };
-
-    reader.readAsText(file);
+    } catch (err) {
+      console.error("Document parsing error:", err);
+    }
   };
 
   const persistCards = (next: Flashcard[]) => {
