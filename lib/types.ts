@@ -36,6 +36,8 @@ export interface TaskItem {
   courseCode: string;
   dueDate: string;
   dueTime?: string;
+  eventTime?: string;
+  meetingLink?: string;
   priority: "high" | "medium" | "low";
   status: "todo" | "in_progress" | "completed";
   category: string;
@@ -60,9 +62,9 @@ export interface CourseItem {
   courseCode: string;
   courseName: string;
   instructor: string;
-  meetingLink: string;
-  meetingPlatform: "meet" | "zoom" | "teams";
-  scheduleTime: string;
+  meetingLink?: string;
+  meetingPlatform?: "meet" | "zoom" | "teams";
+  scheduleTime?: string;
 }
 
 export interface MaterialItem {

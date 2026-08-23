@@ -263,14 +263,17 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
                     {dayTasks.slice(0, 2).map(task => (
                       <div 
                         key={task.id}
-                        className={`text-[9px] font-mono px-1 py-0.5 border truncate rounded ${
-                          task.priority === "high" 
-                            ? "bg-red-500/10 border-red-500/20 text-red-500" 
-                            : "bg-blue-500/10 border-blue-500/20 text-[var(--primary)]"
+                        className={`text-[9px] font-mono px-1 py-0.5 border truncate rounded flex items-center gap-1 ${
+                          task.meetingLink
+                            ? "bg-purple-500/20 border-purple-500/40 text-purple-400 font-bold"
+                            : task.priority === "high" 
+                              ? "bg-red-500/10 border-red-500/20 text-red-500" 
+                              : "bg-blue-500/10 border-blue-500/20 text-[var(--primary)]"
                         }`}
-                        title={task.title}
+                        title={task.meetingLink ? `Live Meeting: ${task.title}` : task.title}
                       >
-                        {task.title}
+                        {task.meetingLink && <Video className="w-2.5 h-2.5 flex-shrink-0 text-purple-400" />}
+                        <span className="truncate">{task.title}</span>
                       </div>
                     ))}
 
@@ -358,15 +361,22 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
                   </div>
                 ))}
 
-                {/* Deliverable Tasks */}
+                {/* Deliverable Tasks & Scheduled Meetings */}
                 {selectedDayTasks.map(task => (
                   <div 
                     key={task.id}
-                    className="p-3.5 bg-[var(--surface-soft)] border border-[var(--hairline)] hover:border-[var(--primary)] rounded space-y-1.5 transition-colors"
+                    className={`p-3.5 rounded space-y-2 transition-all ${
+                      task.meetingLink 
+                        ? "bg-purple-500/10 border border-purple-500/30 hover:border-purple-500/60 shadow-sm"
+                        : "bg-[var(--surface-soft)] border border-[var(--hairline)] hover:border-[var(--primary)]"
+                    }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-mono text-[var(--primary)] font-bold">
-                        {task.courseCode} • {task.category}
+                      <span className={`text-[10px] font-mono font-bold flex items-center gap-1.5 ${
+                        task.meetingLink ? "text-purple-400" : "text-[var(--primary)]"
+                      }`}>
+                        {task.meetingLink && <Video className="w-3.5 h-3.5 text-purple-400" />}
+                        <span>{task.courseCode} • {task.category}</span>
                       </span>
                       <span className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded ${
                         task.priority === "high" ? "bg-red-500/20 text-red-500" : "bg-blue-500/20 text-blue-500"
@@ -374,10 +384,31 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
                         {task.priority.toUpperCase()}
                       </span>
                     </div>
+
                     <div className="text-xs font-bold text-[var(--ink)]">
                       {task.title}
                     </div>
-                    <div className="text-[10px] text-[var(--muted)] font-mono flex items-center justify-between pt-1">
+
+                    {task.eventTime && (
+                      <div className="text-[11px] font-mono text-slate-400 flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-purple-400" />
+                        <span>{task.eventTime}</span>
+                      </div>
+                    )}
+
+                    {task.meetingLink && (
+                      <a
+                        href={task.meetingLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="mt-2 w-full py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-colors shadow-md shadow-purple-500/20"
+                      >
+                        <Video className="w-4 h-4" />
+                        <span>JOIN LIVE MEETING / CLASS</span>
+                      </a>
+                    )}
+
+                    <div className="text-[10px] text-[var(--muted)] font-mono flex items-center justify-between pt-1 border-t border-[var(--hairline)]">
                       <span>Status: {task.status.replace("_", " ").toUpperCase()}</span>
                       <span>Google Sync: Active</span>
                     </div>

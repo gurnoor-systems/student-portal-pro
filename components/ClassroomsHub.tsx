@@ -97,9 +97,6 @@ export default function ClassroomsHub() {
   const [newCourseCode, setNewCourseCode] = useState("");
   const [newCourseName, setNewCourseName] = useState("");
   const [newInstructor, setNewInstructor] = useState("");
-  const [newMeetingLink, setNewMeetingLink] = useState("");
-  const [newPlatform, setNewPlatform] = useState<"meet" | "zoom" | "teams">("meet");
-  const [newSchedule, setNewSchedule] = useState("");
 
   // New Folder State
   const [newFolderName, setNewFolderName] = useState("");
@@ -120,17 +117,13 @@ export default function ClassroomsHub() {
     addCourse({
       courseCode: newCourseCode.trim().toUpperCase(),
       courseName: newCourseName.trim(),
-      instructor: newInstructor.trim() || "Instructor",
-      meetingLink: newMeetingLink.trim() || "https://meet.google.com/new",
-      meetingPlatform: newPlatform,
-      scheduleTime: newSchedule.trim() || "Schedule TBA"
+      instructor: newInstructor.trim() || "Faculty Professor",
+      meetingPlatform: "meet"
     });
 
     setNewCourseCode("");
     setNewCourseName("");
     setNewInstructor("");
-    setNewMeetingLink("");
-    setNewSchedule("");
     setIsAddCourseModalOpen(false);
   };
 
@@ -298,28 +291,23 @@ export default function ClassroomsHub() {
                 </div>
 
                 <div className="p-3 bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs text-[var(--ink)] font-light space-y-1">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-[var(--primary)]" />
-                    <span>{course.scheduleTime}</span>
-                  </div>
-                  <div className="text-[11px] text-[var(--muted)]">
-                    Platform: <strong className="font-semibold text-[var(--ink)] uppercase">{course.meetingPlatform}</strong>
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-[var(--muted)]">Study Folder:</span>
+                    <strong className="text-[var(--ink)] font-bold">{materials.filter(m => m.courseCode === course.courseCode).length} Files Attached</strong>
                   </div>
                 </div>
               </div>
 
-              {/* 1-Click Video Launcher Action */}
-              <div className="pt-4 border-t border-[var(--hairline)]">
-                <a
-                  href={course.meetingLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="bmw-btn-primary w-full flex items-center justify-center gap-2"
+              {/* Subject Repository Shortcut */}
+              <div className="pt-3 border-t border-[var(--hairline)]">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCourseFilter(course.courseCode)}
+                  className="bmw-btn-secondary w-full !h-9 !text-[11px] flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Video className="w-4 h-4" />
-                  <span>JOIN LIVE CLASS</span>
-                  <ArrowUpRight className="w-3.5 h-3.5 ml-1" />
-                </a>
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>VIEW MATERIALS</span>
+                </button>
               </div>
             </div>
           ))}
@@ -642,41 +630,7 @@ export default function ClassroomsHub() {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">SCHEDULE TIME</label>
-                <input
-                  type="text"
-                  value={newSchedule}
-                  onChange={(e) => setNewSchedule(e.target.value)}
-                  placeholder="e.g. Mon/Wed 10:00 AM - 11:30 AM"
-                  className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
-                />
-              </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-1">
-                  <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">PLATFORM</label>
-                  <select
-                    value={newPlatform}
-                    onChange={(e) => setNewPlatform(e.target.value as any)}
-                    className="w-full h-10 px-2 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] font-bold outline-none"
-                  >
-                    <option value="meet">Google Meet</option>
-                    <option value="zoom">Zoom</option>
-                    <option value="teams">MS Teams</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block font-bold uppercase tracking-wider text-[var(--ink)] mb-1">MEETING URL</label>
-                  <input
-                    type="url"
-                    value={newMeetingLink}
-                    onChange={(e) => setNewMeetingLink(e.target.value)}
-                    placeholder="https://meet.google.com/..."
-                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-[var(--ink)] outline-none focus:border-[var(--primary)]"
-                  />
-                </div>
-              </div>
 
               <div className="pt-4 flex justify-end gap-3 border-t border-[var(--hairline)]">
                 <button

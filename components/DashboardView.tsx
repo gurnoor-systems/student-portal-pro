@@ -487,33 +487,61 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
                     <span className="text-[10px] font-mono text-emerald-500 font-bold">READY</span>
                   </div>
 
-                  {userData.courses.length > 0 ? (
-                    <div className="space-y-2.5">
-                      {userData.courses.map(c => (
-                        <div key={c.id} className="p-3 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl space-y-2">
+                  {/* Scheduled Video Meetings */}
+                  {userData.tasks.filter(t => t.meetingLink && t.status !== "completed").length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      <div className="text-[10px] font-mono uppercase text-purple-400 font-bold flex items-center gap-1.5">
+                        <Video className="w-3 h-3 text-purple-400" />
+                        <span>SCHEDULED MEETINGS ({userData.tasks.filter(t => t.meetingLink && t.status !== "completed").length})</span>
+                      </div>
+                      {userData.tasks.filter(t => t.meetingLink && t.status !== "completed").slice(0, 2).map(task => (
+                        <div key={task.id} className="p-3 bg-purple-500/10 border border-purple-500/30 rounded-xl space-y-1.5">
                           <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-mono text-[var(--primary)] font-bold">{c.courseCode}</span>
-                            <span className="text-[10px] text-[var(--muted)] font-mono">{c.scheduleTime}</span>
+                            <span className="text-[10px] font-mono text-purple-300 font-bold">{task.courseCode}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{task.eventTime || "Scheduled Time"}</span>
                           </div>
-                          <div className="text-xs font-bold text-[var(--ink)] truncate">{c.courseName}</div>
+                          <div className="text-xs font-bold text-white truncate">{task.title}</div>
                           <a
-                            href={c.meetingLink}
+                            href={task.meetingLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors"
+                            className="w-full py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-colors mt-1"
                           >
                             <Video className="w-3.5 h-3.5" />
-                            <span>JOIN LECTURE</span>
+                            <span>JOIN LIVE MEETING</span>
                           </a>
                         </div>
                       ))}
                     </div>
+                  )}
+
+                  {/* Enrolled Subjects List */}
+                  {userData.courses.length > 0 ? (
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-mono uppercase text-[var(--muted)] font-bold">
+                        ENROLLED SUBJECTS ({userData.courses.length})
+                      </div>
+                      {userData.courses.slice(0, 3).map(c => (
+                        <div key={c.id} className="p-2.5 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl flex items-center justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono text-[var(--primary)] font-bold">{c.courseCode}</span>
+                              <span className="text-xs font-bold text-[var(--ink)] truncate max-w-[140px]">{c.courseName}</span>
+                            </div>
+                            <div className="text-[10px] text-[var(--muted)] font-mono mt-0.5">{c.instructor || "Faculty Professor"}</div>
+                          </div>
+                          <span className="text-[10px] px-2 py-0.5 bg-[var(--surface-card)] border border-[var(--hairline)] text-[var(--muted)] font-mono rounded">
+                            {userData.tasks.filter(t => t.courseCode === c.courseCode && t.status !== "completed").length} active
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <div className="py-8 text-center space-y-2">
+                    <div className="py-6 text-center space-y-2">
                       <BookOpen className="w-6 h-6 text-[var(--muted)] mx-auto opacity-70" />
                       <div className="text-xs font-bold text-[var(--ink)]">No Enrolled Courses</div>
                       <p className="text-[11px] text-[var(--muted)] font-light">
-                        Add course codes in Classes & Links to configure lecture meeting links.
+                        Add subjects in Profile or Classrooms Hub to organize your semester.
                       </p>
                     </div>
                   )}

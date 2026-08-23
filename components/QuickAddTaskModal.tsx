@@ -19,11 +19,22 @@ export default function QuickAddTaskModal({ isOpen, onClose }: QuickAddTaskModal
   const [dueDateType, setDueDateType] = useState<"today" | "tomorrow" | "custom">("tomorrow");
   const [customDate, setCustomDate] = useState("");
 
+  // Video Meeting Options
+  const [hasMeeting, setHasMeeting] = useState(false);
+  const [meetingUrl, setMeetingUrl] = useState("");
+  const [meetingTime, setMeetingTime] = useState("10:30 AM - 11:30 AM");
+
   useEffect(() => {
     if (userData.courses.length > 0 && !courseCode) {
       setCourseCode(userData.courses[0].courseCode);
     }
   }, [userData.courses, courseCode]);
+
+  useEffect(() => {
+    if (category === "Lecture / Meeting" || category === "Study Group") {
+      setHasMeeting(true);
+    }
+  }, [category]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -61,6 +72,9 @@ export default function QuickAddTaskModal({ isOpen, onClose }: QuickAddTaskModal
       title: title.trim(),
       courseCode: courseCode || (userData.courses[0]?.courseCode ?? "GEN 101"),
       dueDate: computedDate.toISOString(),
+      dueTime: hasMeeting ? meetingTime.trim() : undefined,
+      eventTime: hasMeeting ? meetingTime.trim() : undefined,
+      meetingLink: hasMeeting && meetingUrl.trim() ? meetingUrl.trim() : (hasMeeting ? "https://meet.google.com/new" : undefined),
       priority,
       status: "todo",
       category,
@@ -70,6 +84,8 @@ export default function QuickAddTaskModal({ isOpen, onClose }: QuickAddTaskModal
     setTitle("");
     setDueDateType("tomorrow");
     setPriority("medium");
+    setHasMeeting(false);
+    setMeetingUrl("");
     onClose();
   };
 
@@ -156,8 +172,59 @@ export default function QuickAddTaskModal({ isOpen, onClose }: QuickAddTaskModal
                 <option value="Problem Set">Problem Set</option>
                 <option value="Project">Project Milestone</option>
                 <option value="Reading">Reading / Prep</option>
+                <option value="Lecture / Meeting">Lecture / Class Meeting</option>
+                <option value="Study Group">Study Group Session</option>
               </select>
             </div>
+          </div>
+
+          {/* Optional Video / Meeting Link Section */}
+          <div className="p-3.5 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-[var(--ink)] flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={hasMeeting}
+                  onChange={(e) => setHasMeeting(e.target.checked)}
+                  className="w-4 h-4 rounded text-[var(--primary)] focus:ring-0 cursor-pointer"
+                />
+                <span>Attach Live Meeting Link (Google Meet / Zoom)</span>
+              </label>
+              {hasMeeting && (
+                <span className="text-[10px] font-mono text-purple-400 font-bold bg-purple-500/10 px-2 py-0.5 rounded">
+                  CALENDAR SYNC
+                </span>
+              )}
+            </div>
+
+            {hasMeeting && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[var(--muted)] mb-1">
+                    MEETING TIME
+                  </label>
+                  <input
+                    type="text"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    placeholder="e.g. 10:30 AM - 11:30 AM"
+                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-xs text-[var(--ink)] outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-[var(--muted)] mb-1">
+                    MEETING LINK URL
+                  </label>
+                  <input
+                    type="url"
+                    value={meetingUrl}
+                    onChange={(e) => setMeetingUrl(e.target.value)}
+                    placeholder="https://meet.google.com/xyz-abcd-efg"
+                    className="w-full h-10 px-3 bg-[var(--canvas)] border border-[var(--hairline-strong)] text-xs text-[var(--ink)] outline-none focus:border-[var(--primary)]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Due Date Shortcut Pills */}

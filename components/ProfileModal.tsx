@@ -122,8 +122,6 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
   const [subjectCode, setSubjectCode] = useState("");
   const [subjectName, setSubjectName] = useState("");
   const [instructor, setInstructor] = useState("");
-  const [meetingLink, setMeetingLink] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
 
   // Semester rollover state
   const [isRolloverOpen, setIsRolloverOpen] = useState(false);
@@ -238,16 +236,12 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
       courseCode: fallbackCode,
       courseName: subjectName.trim(),
       instructor: instructor.trim() || "Faculty Professor",
-      meetingLink: meetingLink.trim() || `https://meet.google.com/${fallbackCode.toLowerCase()}`,
-      meetingPlatform: "meet",
-      scheduleTime: scheduleTime.trim() || "Schedule TBA"
+      meetingPlatform: "meet"
     });
 
     setSubjectCode("");
     setSubjectName("");
     setInstructor("");
-    setMeetingLink("");
-    setScheduleTime("");
     setIsAddSubjectOpen(false);
   };
 
@@ -543,36 +537,13 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">INSTRUCTOR / PROFESSOR</label>
-                      <input
-                        type="text"
-                        value={instructor}
-                        onChange={(e) => setInstructor(e.target.value)}
-                        placeholder="e.g. Dr. Jennifer Vance"
-                        className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white rounded-lg outline-none focus:border-[var(--primary)]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">SCHEDULE / TIME</label>
-                      <input
-                        type="text"
-                        value={scheduleTime}
-                        onChange={(e) => setScheduleTime(e.target.value)}
-                        placeholder="e.g. Tue/Thu 1:30 PM - 3:00 PM"
-                        className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white rounded-lg outline-none focus:border-[var(--primary)]"
-                      />
-                    </div>
-                  </div>
-
                   <div>
-                    <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">LECTURE MEETING LINK (GOOGLE MEET / ZOOM)</label>
+                    <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">INSTRUCTOR / PROFESSOR (OPTIONAL)</label>
                     <input
-                      type="url"
-                      value={meetingLink}
-                      onChange={(e) => setMeetingLink(e.target.value)}
-                      placeholder="https://meet.google.com/xyz-abcd-efg"
+                      type="text"
+                      value={instructor}
+                      onChange={(e) => setInstructor(e.target.value)}
+                      placeholder="e.g. Dr. Jennifer Vance"
                       className="w-full h-10 px-3 bg-[#141b24] border border-white/15 text-white rounded-lg outline-none focus:border-[var(--primary)]"
                     />
                   </div>
@@ -618,20 +589,8 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
 
                         <div>
                           <div className="text-xs font-bold text-white truncate">{course.courseName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{course.instructor} • {course.scheduleTime}</div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">{course.instructor || "Faculty Professor"}</div>
                         </div>
-
-                        {course.meetingLink && (
-                          <a
-                            href={course.meetingLink}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] font-mono text-[var(--primary)] hover:underline flex items-center gap-1 pt-1 border-t border-white/10"
-                          >
-                            <Video className="w-3 h-3" />
-                            <span>Lecture Room Link</span>
-                          </a>
-                        )}
                       </div>
                     ))}
                   </div>
