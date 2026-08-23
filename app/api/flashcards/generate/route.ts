@@ -355,7 +355,11 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanText = extractCleanText(text);
-    const { subjectName } = extractDomainConcepts(cleanText, documentTitle);
+    const subjectName = (documentTitle || "")
+      .replace(/\.[a-zA-Z0-9]+$/, "")
+      .replace(/\([0-9]+\)/g, "")
+      .replace(/[-_]/g, " ")
+      .trim() || "Course Material";
 
     const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY;
 
