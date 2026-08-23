@@ -302,7 +302,7 @@ export default function ClassroomsHub() {
               <div className="pt-3 border-t border-[var(--hairline)]">
                 <button
                   type="button"
-                  onClick={() => setSelectedCourseFilter(course.courseCode)}
+                  onClick={() => setActiveCourseFilter(course.courseCode)}
                   className="bmw-btn-secondary w-full !h-9 !text-[11px] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <BookOpen className="w-3.5 h-3.5" />
