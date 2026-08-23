@@ -30,7 +30,8 @@ import {
   Square,
   FileSpreadsheet,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  Brain
 } from "lucide-react";
 
 export interface DocumentItem {
@@ -94,7 +95,81 @@ export default function CourseDocumentViewer() {
   const [parsedResult, setParsedResult] = useState<ParsedSyllabusResult | null>(null);
   const [saveToDocsChecked, setSaveToDocsChecked] = useState(true);
   const [importSuccessMessage, setImportSuccessMessage] = useState("");
+  const [isGeneratingFlashcards, setIsGeneratingFlashcards] = useState(false);
+  const [flashcardsSuccessMessage, setFlashcardsSuccessMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleGenerateDocFlashcards = async (doc: DocumentItem) => {
+    if (!doc || !user) return;
+    setIsGeneratingFlashcards(true);
+    setFlashcardsSuccessMessage("");
+
+    try {
+      const fullText = doc.content.join("\n\n");
+      const res = await fetch("/api/flashcards/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: fullText,
+          courseCode: doc.courseCode,
+          documentTitle: doc.title
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.result) {
+        const timestamp = Date.now();
+        const created: any[] = [];
+        
+        data.result.easy.forEach((c: any, i: number) => {
+          created.push({
+            id: `fc_doc_easy_${timestamp}_${i}`,
+            courseCode: doc.courseCode,
+            frontQuestion: c.question,
+            backAnswer: c.answer,
+            difficulty: "easy",
+            mastery: "new",
+            sourceDocument: doc.title
+          });
+        });
+
+        data.result.medium.forEach((c: any, i: number) => {
+          created.push({
+            id: `fc_doc_med_${timestamp}_${i}`,
+            courseCode: doc.courseCode,
+            frontQuestion: c.question,
+            backAnswer: c.answer,
+            difficulty: "medium",
+            mastery: "new",
+            sourceDocument: doc.title
+          });
+        });
+
+        data.result.hard.forEach((c: any, i: number) => {
+          created.push({
+            id: `fc_doc_hard_${timestamp}_${i}`,
+            courseCode: doc.courseCode,
+            frontQuestion: c.question,
+            backAnswer: c.answer,
+            difficulty: "hard",
+            mastery: "new",
+            sourceDocument: doc.title
+          });
+        });
+
+        const rawExisting = localStorage.getItem(`student_portal_user_${user.id}_flashcards`);
+        const existing = rawExisting ? JSON.parse(rawExisting) : [];
+        const next = [...created, ...existing];
+        localStorage.setItem(`student_portal_user_${user.id}_flashcards`, JSON.stringify(next));
+
+        setFlashcardsSuccessMessage(`✅ Generated ${created.length} 3-tier flashcards (🟢 ${data.result.easy.length} Easy, 🟡 ${data.result.medium.length} Medium, 🔴 ${data.result.hard.length} Hard) from "${doc.title}"!`);
+      }
+    } catch (err) {
+      console.error("Flashcard generator error:", err);
+    } finally {
+      setIsGeneratingFlashcards(false);
+    }
+  };
 
   // Persist user documents
   const persistDocs = (nextDocs: DocumentItem[]) => {
@@ -789,25 +864,63 @@ export default function CourseDocumentViewer() {
                     </h3>
                   </div>
 
-                  {/* Zoom controls */}
-                  <div className="flex items-center gap-1 bg-[var(--surface-soft)] p-1 rounded-lg border border-[var(--hairline)]">
+                  {/* Action Toolbar */}
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setZoomLevel(prev => Math.max(70, prev - 10))}
-                      className="p-1 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
-                      title="Zoom Out"
+                      onClick={() => handleGenerateDocFlashcards(activeDoc)}
+                      disabled={isGeneratingFlashcards}
+                      className="px-3 py-1.5 bg-gradient-to-r from-purple-600 to-[var(--primary)] hover:from-purple-500 hover:to-[var(--primary-active)] text-white text-xs font-bold rounded-lg flex items-center gap-1.5 cursor-pointer shadow-sm transition-all disabled:opacity-50"
+                      title="Generate 3-Tier AI Flashcards from this document"
                     >
-                      <ZoomOut className="w-3.5 h-3.5" />
+                      {isGeneratingFlashcards ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Generating...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Brain className="w-3.5 h-3.5" />
+                          <span>AI Flashcards</span>
+                        </>
+                      )}
                     </button>
-                    <span className="text-[10px] font-mono text-[var(--ink)] px-1.5 font-bold">{zoomLevel}%</span>
-                    <button
-                      onClick={() => setZoomLevel(prev => Math.min(150, prev + 10))}
-                      className="p-1 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
-                      title="Zoom In"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
+
+                    {/* Zoom controls */}
+                    <div className="flex items-center gap-1 bg-[var(--surface-soft)] p-1 rounded-lg border border-[var(--hairline)]">
+                      <button
+                        onClick={() => setZoomLevel(prev => Math.max(70, prev - 10))}
+                        className="p-1 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+                        title="Zoom Out"
+                      >
+                        <ZoomOut className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] font-mono text-[var(--ink)] px-1.5 font-bold">{zoomLevel}%</span>
+                      <button
+                        onClick={() => setZoomLevel(prev => Math.min(150, prev + 10))}
+                        className="p-1 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
+                        title="Zoom In"
+                      >
+                        <ZoomIn className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
+
+                {/* Flashcards Generation Success Banner */}
+                {flashcardsSuccessMessage && (
+                  <div className="p-3 bg-purple-500/15 border border-purple-500/30 text-purple-300 font-mono text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-purple-400 flex-shrink-0" />
+                      <span>{flashcardsSuccessMessage}</span>
+                    </div>
+                    <button
+                      onClick={() => setFlashcardsSuccessMessage("")}
+                      className="text-slate-400 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
 
                 {/* Page Viewer Stage */}
                 <div 

@@ -83,6 +83,26 @@ export interface StudyMilestone {
   deliverables: string[];
 }
 
+export interface Flashcard {
+  id: string;
+  courseCode: string;
+  frontQuestion: string;
+  backAnswer: string;
+  difficulty: "easy" | "medium" | "hard";
+  mastery: "new" | "learning" | "mastered";
+  sourceDocument?: string;
+  lastReviewed?: string;
+}
+
+export interface TieredFlashcardsResult {
+  courseCode: string;
+  documentTitle?: string;
+  easy: Array<{ question: string; answer: string }>;
+  medium: Array<{ question: string; answer: string }>;
+  hard: Array<{ question: string; answer: string }>;
+  totalCount: number;
+}
+
 export interface RegisteredAccount {
   id: string;
   email: string;
