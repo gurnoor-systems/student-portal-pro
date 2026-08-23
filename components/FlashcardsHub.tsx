@@ -86,8 +86,22 @@ export default function FlashcardsHub() {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const contentText = (event.target?.result as string) || "";
-      if (!contentText.trim()) return;
+      const raw = (event.target?.result as string) || "";
+      if (!raw.trim()) return;
+
+      // Extract readable human text if file is raw PDF binary stream
+      let contentText = raw;
+      if (raw.startsWith("%PDF") || raw.includes("stream") || raw.includes("/Contents")) {
+        const parenMatches = raw.match(/\(([^()]{2,500})\)/g);
+        if (parenMatches) {
+          const chunks = parenMatches
+            .map(m => m.slice(1, -1).replace(/\\([()\\])/g, "$1").trim())
+            .filter(s => s.length > 2 && /[a-zA-Z]/.test(s) && !s.startsWith("/Font") && !s.startsWith("/Filter"));
+          if (chunks.length > 5) {
+            contentText = chunks.join(" ");
+          }
+        }
+      }
 
       const newDoc = {
         id: `doc_${Date.now()}`,
