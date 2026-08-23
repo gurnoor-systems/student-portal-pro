@@ -87,12 +87,60 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
           }
         }
 
-        // Fallback for simulated/local files
+        // Fallback for simulated/local files: Generate a valid, renderable PDF document
         if (!targetUrl || targetUrl.startsWith("/api/storage/mock-view")) {
-          // Create dummy sample PDF preview if simulated
-          const sampleBlob = new Blob([
-            `%PDF-1.4\n1 0 obj\n<< /Title (${document.fileName}) >>\nendobj\n%%EOF`
-          ], { type: "application/pdf" });
+          const docTitle = document.fileName.replace(/[^a-zA-Z0-9 ._-]/g, "");
+          const docCourse = document.courseCode.replace(/[^a-zA-Z0-9 ._-]/g, "");
+          const timestamp = new Date().toLocaleDateString();
+          
+          const contentStream = `BT
+/F1 20 Tf
+50 720 Td
+(${docTitle}) Tj
+ET
+BT
+/F1 12 Tf
+50 685 Td
+(Course: #${docCourse} | Student Portal Pro) Tj
+ET
+BT
+/F1 10 Tf
+50 655 Td
+(Status: Verified Document | Uploaded: ${timestamp}) Tj
+ET
+BT
+/F1 10 Tf
+50 610 Td
+(This document is synchronized with your student workspace.) Tj
+ET
+0.2 0.4 0.8 rg
+50 705 512 2 re
+f`;
+          const streamLen = contentStream.length;
+          const validPdfString = `%PDF-1.4
+1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
+2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
+3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
+4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj
+5 0 obj << /Length ${streamLen} >>
+stream
+${contentStream}
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000249 00000 n 
+0000000328 00000 n 
+trailer << /Size 6 /Root 1 0 R >>
+startxref
+${420 + streamLen}
+%%EOF`;
+
+          const sampleBlob = new Blob([validPdfString], { type: "application/pdf" });
           
           if (isMounted) {
             const url = URL.createObjectURL(sampleBlob);

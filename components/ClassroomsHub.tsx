@@ -119,53 +119,59 @@ export default function ClassroomsHub() {
 
     setIsUploading(true);
     const finalFileName = uploadFileName.endsWith(".pdf") ? uploadFileName : `${uploadFileName}.pdf`;
+    const newDocId = `mat_${Date.now()}`;
     let fileKey: string | undefined = undefined;
+    let fileUrl: string | undefined = undefined;
     let versionId = `v_${Date.now()}`;
-    let calculatedSize = attachedFile ? `${(attachedFile.size / (1024 * 1024)).toFixed(1)} MB` : "2.4 MB";
+    
+    // Proper file size formatting (never shows 0.0 MB for small files)
+    let calculatedSize = "2.4 MB";
+    if (attachedFile) {
+      if (attachedFile.size < 1024 * 1024) {
+        calculatedSize = `${Math.max(1, Math.round(attachedFile.size / 1024))} KB`;
+      } else {
+        calculatedSize = `${(attachedFile.size / (1024 * 1024)).toFixed(1)} MB`;
+      }
+    }
 
     try {
       if (user?.id) {
-        // Step 1: Request Pre-signed Upload URL (<1KB payload, bypasses Vercel 4.5MB limit)
-        const presignRes = await fetch("/api/storage/presigned-upload", {
+        const formData = new FormData();
+        formData.append("userId", user.id);
+        formData.append("fileName", finalFileName);
+        formData.append("courseCode", uploadCourseCode);
+        if (attachedFile) {
+          formData.append("file", attachedFile);
+        }
+
+        const uploadRes = await fetch("/api/storage/upload", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: user.id,
-            fileName: finalFileName,
-            fileSize: attachedFile ? attachedFile.size : 2500000,
-            contentType: attachedFile?.type || "application/pdf"
-          })
+          body: formData
         });
 
-        const presignData = await presignRes.json();
-        if (presignData.success && presignData.uploadUrl) {
-          fileKey = presignData.fileKey;
-          versionId = presignData.versionId || versionId;
+        const uploadData = await uploadRes.json();
+        if (uploadData.success) {
+          fileKey = uploadData.fileKey;
+          fileUrl = uploadData.fileUrl;
+          versionId = uploadData.versionId || versionId;
+        }
 
-          // Step 2: Upload directly to Cloudflare R2 if real file attached
-          if (attachedFile && !presignData.isSimulated) {
-            await fetch(presignData.uploadUrl, {
-              method: "PUT",
-              headers: { "Content-Type": attachedFile.type || "application/pdf" },
-              body: attachedFile
-            });
-
-            // Cache in local IndexedDB for immediate 0ms next view
-            await PDFCacheManager.storeBlob(
-              `mat_${Date.now()}`,
-              versionId,
-              finalFileName,
-              attachedFile
-            );
-          }
+        // Cache in local IndexedDB for immediate 0ms next view
+        if (attachedFile) {
+          await PDFCacheManager.storeBlob(
+            newDocId,
+            versionId,
+            finalFileName,
+            attachedFile
+          );
         }
       }
     } catch (error) {
-      console.warn("Direct upload error, saving metadata:", error);
+      console.warn("Upload error, saving local metadata:", error);
     }
 
     const newFile: MaterialItem = {
-      id: `mat_${Date.now()}`,
+      id: newDocId,
       courseCode: uploadCourseCode,
       folderName: uploadTargetFolder,
       fileName: finalFileName,
@@ -173,6 +179,7 @@ export default function ClassroomsHub() {
       fileType: "pdf",
       uploadedAt: "Just now",
       fileKey,
+      fileUrl,
       versionId
     };
 
