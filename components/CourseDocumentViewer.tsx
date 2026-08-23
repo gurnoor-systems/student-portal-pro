@@ -278,7 +278,7 @@ export default function CourseDocumentViewer() {
           courseCode: e.courseCode || parsedResult.courseCode || "CS 101",
           examDate: e.date || new Date().toISOString().split("T")[0],
           weightPercent: e.weightPercent || 25,
-          location: "Campus Hall / Online",
+          location: "To Be Announced",
           topics: [`Comprehensive review for ${e.name}`]
         });
         examsCount++;

@@ -52,7 +52,7 @@ export interface ExamItem {
   courseCode: string;
   examDate: string;
   weightPercent: number;
-  location: string;
+  location?: string;
   topics: string[];
 }
 
