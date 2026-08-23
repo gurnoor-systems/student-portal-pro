@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
 import { 
@@ -135,6 +135,33 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
+
+  const emailInputRef = useRef<HTMLInputElement>(null);
+
+  // Email validation with proper domain checks
+  const isValidStudentEmail = (val: string): boolean => {
+    if (!val || typeof val !== "string") return false;
+    const trimmed = val.trim().toLowerCase();
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(trimmed);
+  };
+
+  const handleForgotPasswordClick = () => {
+    const trimmed = (email || "").trim();
+    if (!trimmed || !isValidStudentEmail(trimmed)) {
+      setError("Please enter your complete student email address (e.g. student@uwaterloo.ca or name@gmail.com) first.");
+      setTimeout(() => {
+        emailInputRef.current?.focus();
+      }, 50);
+      return;
+    }
+
+    setError(null);
+    setSuccessMessage(null);
+    setForgotEmail(trimmed.toLowerCase());
+    setForgotStep(1);
+    setTab("forgot");
+  };
 
   if (!isOpen) return null;
 
@@ -407,13 +434,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
             {error.toLowerCase().includes("incorrect password") || error.toLowerCase().includes("credentials") ? (
               <button
                 type="button"
-                onClick={() => {
-                  setTab("forgot");
-                  setForgotStep(1);
-                  setForgotEmail(email || "");
-                  setError(null);
-                  setSuccessMessage(null);
-                }}
+                onClick={handleForgotPasswordClick}
                 className="px-3 py-1.5 bg-[#d4af37] hover:bg-[#b5952f] text-black text-xs font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 flex-shrink-0 self-start sm:self-auto cursor-pointer shadow-md shadow-amber-500/20"
               >
                 <KeyRound className="w-3.5 h-3.5" />
@@ -864,6 +885,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   STUDENT EMAIL
                 </label>
                 <input
+                  ref={emailInputRef}
                   type="email"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -881,20 +903,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   <label className="block text-[11px] font-mono uppercase text-slate-300">
                     PASSWORD
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab("forgot");
-                      setForgotStep(1);
-                      setForgotEmail(email || "");
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className="text-[11px] text-[#60a5fa] hover:text-[#93c5fd] font-mono font-bold transition-colors cursor-pointer flex items-center gap-1"
-                  >
-                    <KeyRound className="w-3 h-3 text-[#d4af37]" />
-                    <span>Forgot Password?</span>
-                  </button>
                 </div>
                 <div className="relative">
                   <input
@@ -919,17 +927,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 <div className="flex justify-end mt-1.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      setTab("forgot");
-                      setForgotStep(1);
-                      setForgotEmail(email || "");
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
+                    onClick={handleForgotPasswordClick}
                     className="text-xs text-[#60a5fa] hover:text-[#93c5fd] font-mono font-medium transition-colors cursor-pointer flex items-center gap-1.5 py-1"
                   >
                     <KeyRound className="w-3.5 h-3.5 text-[#d4af37]" />
-                    <span>Forgot password? Reset via 6-digit email PIN ›</span>
+                    <span>Forgot Password?</span>
                   </button>
                 </div>
               </div>
