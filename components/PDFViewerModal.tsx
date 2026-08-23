@@ -6,14 +6,19 @@ import {
   Download, 
   ZoomIn, 
   ZoomOut, 
-  RotateCw, 
   Maximize2, 
   FileText, 
-  ExternalLink,
-  ShieldCheck,
   HardDrive,
   Cloud,
-  CheckCircle2
+  Moon,
+  Sun,
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
+  Sparkles,
+  Share2,
+  Check
 } from "lucide-react";
 import { PDFCacheManager } from "@/lib/pdf-cache-manager";
 
@@ -38,6 +43,9 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
   const [isFromCache, setIsFromCache] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -54,6 +62,10 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
     setErrorMessage(null);
     setIsFromCache(false);
 
+    // Retrieve last saved bookmark page
+    const savedBookmark = PDFCacheManager.getBookmark(document.id);
+    setCurrentPage(savedBookmark || 1);
+
     async function loadDocument() {
       if (!document) return;
       const versionId = document.versionId || "v1";
@@ -69,7 +81,7 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
           return;
         }
 
-        // 2. Fetch Pre-Signed View URL from API
+        // 2. Fetch Pre-Signed / Authenticated View URL from API
         let targetUrl = document.fileUrl || "";
         if (document.fileKey || document.googleDriveFileId) {
           const res = await fetch("/api/storage/presigned-view", {
@@ -87,7 +99,7 @@ export default function PDFViewerModal({ isOpen, onClose, document }: PDFViewerM
           }
         }
 
-        // Fallback for simulated/local files: Generate a valid, renderable PDF document
+        // 3. Fallback for simulated/local files: Generate a valid, renderable PDF document
         if (!targetUrl || targetUrl.startsWith("/api/storage/mock-view")) {
           const docTitle = document.fileName.replace(/[^a-zA-Z0-9 ._-]/g, "");
           const docCourse = document.courseCode.replace(/[^a-zA-Z0-9 ._-]/g, "");
@@ -151,7 +163,7 @@ ${420 + streamLen}
           return;
         }
 
-        // 3. Stream from Cloudflare R2 and save to IndexedDB for 0ms next view
+        // 4. Stream from Cloud and save to IndexedDB for 0ms next view
         try {
           const response = await fetch(targetUrl);
           if (response.ok) {
@@ -166,14 +178,7 @@ ${420 + streamLen}
             }
           }
         } catch (corsOrNetworkErr) {
-          // If browser fetch blocked by CORS or network, fall back directly to signed URL
           console.warn("Direct fetch bypassed, using signed iframe URL:", corsOrNetworkErr);
-          if (isMounted) {
-            setBlobUrl(targetUrl);
-            setIsFromCache(false);
-            setLoading(false);
-            return;
-          }
         }
 
         if (isMounted) {
@@ -197,15 +202,30 @@ ${420 + streamLen}
     };
   }, [isOpen, document]);
 
+  const handleSavePageBookmark = (newPage: number) => {
+    setCurrentPage(newPage);
+    if (document?.id) {
+      PDFCacheManager.setBookmark(document.id, newPage);
+    }
+  };
+
+  const handleCopyLink = () => {
+    if (document?.fileUrl || blobUrl) {
+      navigator.clipboard.writeText(document?.fileUrl || window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
+
   if (!isOpen || !document) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
       <div className={`bg-[#0c121a] border border-white/15 rounded-2xl shadow-2xl flex flex-col overflow-hidden transition-all ${
-        isFullscreen ? "w-full h-full rounded-none" : "w-full max-w-5xl h-[90vh]"
+        isFullscreen ? "w-full h-full rounded-none" : "w-full max-w-6xl h-[92vh]"
       }`}>
         
-        {/* Top Control Bar */}
+        {/* Top Header & Toolbar */}
         <div className="px-4 py-3 bg-[#090d12] border-b border-white/10 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/20 text-[var(--primary)] flex items-center justify-center flex-shrink-0">
@@ -231,15 +251,51 @@ ${420 + streamLen}
                 ) : (
                   <span className="text-blue-400 font-semibold flex items-center gap-1">
                     <Cloud className="w-3 h-3" />
-                    <span>Cloud Stream</span>
+                    <span>Supabase Cloud</span>
                   </span>
+                )}
+                {currentPage > 1 && (
+                  <>
+                    <span>•</span>
+                    <span className="text-amber-400 font-semibold flex items-center gap-0.5">
+                      <Bookmark className="w-3 h-3" />
+                      <span>Resumed at p.{currentPage}</span>
+                    </span>
+                  </>
                 )}
               </div>
             </div>
           </div>
 
           {/* Right Action Tools */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+            {/* Page Jump Input */}
+            <div className="hidden md:flex items-center gap-1 px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-xs">
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Page</span>
+              <input
+                type="number"
+                min="1"
+                max="9999"
+                value={currentPage}
+                onChange={(e) => handleSavePageBookmark(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-10 bg-transparent text-center font-bold text-white text-xs outline-none border-b border-white/20 focus:border-[var(--primary)]"
+              />
+            </div>
+
+            {/* Dark Mode Reader Toggle */}
+            <button
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`p-1.5 rounded-lg border transition-colors ${
+                isDarkMode 
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-300" 
+                  : "bg-white/5 border-white/10 text-slate-400 hover:text-white"
+              }`}
+              title={isDarkMode ? "Switch to Light Canvas" : "Switch to Night Reading Mode"}
+            >
+              {isDarkMode ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
+
+            {/* Zoom Controls */}
             <button
               onClick={() => setZoomLevel(prev => Math.max(50, prev - 15))}
               className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-white/10 transition-colors"
@@ -248,7 +304,7 @@ ${420 + streamLen}
               <ZoomOut className="w-4 h-4" />
             </button>
 
-            <span className="text-[11px] font-mono text-slate-400 px-1">
+            <span className="text-[11px] font-mono text-slate-400 px-1 hidden sm:inline-block">
               {zoomLevel}%
             </span>
 
@@ -261,6 +317,15 @@ ${420 + streamLen}
             </button>
 
             <div className="h-4 w-px bg-white/10 mx-1" />
+
+            {/* Copy Link */}
+            <button
+              onClick={handleCopyLink}
+              className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-white/10 transition-colors"
+              title="Copy Document Link"
+            >
+              {copiedLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Share2 className="w-4 h-4" />}
+            </button>
 
             {blobUrl && (
               <a
@@ -291,12 +356,12 @@ ${420 + streamLen}
           </div>
         </div>
 
-        {/* PDF Reader Canvas Area */}
-        <div className="flex-1 bg-[#070b10] relative overflow-auto flex items-center justify-center p-4">
+        {/* PDF Reader Canvas Area with Night Mode Inversion Filter */}
+        <div className="flex-1 bg-[#070b10] relative overflow-hidden flex items-center justify-center">
           {loading ? (
             <div className="text-center space-y-3">
               <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto" />
-              <div className="text-xs font-mono text-slate-400">Loading document with cache verification...</div>
+              <div className="text-xs font-mono text-slate-400">Streaming document with 0ms cache-busting...</div>
             </div>
           ) : errorMessage ? (
             <div className="max-w-md p-6 bg-[#141b24] border border-red-500/30 rounded-xl text-center space-y-3">
@@ -310,17 +375,21 @@ ${420 + streamLen}
               </button>
             </div>
           ) : blobUrl ? (
-            <iframe
-              src={`${blobUrl}#zoom=${zoomLevel}`}
-              className="w-full h-full border-0 rounded-lg shadow-inner bg-white"
-              style={{
-                transform: `scale(${zoomLevel / 100})`,
-                transformOrigin: "top center",
-                width: zoomLevel !== 100 ? `${100 / (zoomLevel / 100)}%` : "100%",
-                height: zoomLevel !== 100 ? `${100 / (zoomLevel / 100)}%` : "100%"
-              }}
-              title={document.fileName}
-            />
+            <div className="w-full h-full relative overflow-hidden flex items-center justify-center p-2 sm:p-4">
+              <iframe
+                src={`${blobUrl}#page=${currentPage}&zoom=${zoomLevel}`}
+                className="w-full h-full border-0 rounded-lg shadow-inner transition-all duration-200"
+                style={{
+                  filter: isDarkMode ? "invert(90%) hue-rotate(180deg) brightness(95%) contrast(90%)" : "none",
+                  backgroundColor: isDarkMode ? "#111" : "#fff",
+                  transform: `scale(${zoomLevel / 100})`,
+                  transformOrigin: "top center",
+                  width: zoomLevel !== 100 ? `${100 / (zoomLevel / 100)}%` : "100%",
+                  height: zoomLevel !== 100 ? `${100 / (zoomLevel / 100)}%` : "100%"
+                }}
+                title={document.fileName}
+              />
+            </div>
           ) : null}
         </div>
 

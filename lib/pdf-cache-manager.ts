@@ -110,6 +110,30 @@ export class PDFCacheManager {
   }
 
   /**
+   * Computes total bytes stored in local IndexedDB disk cache.
+   */
+  static async getTotalCacheSize(): Promise<number> {
+    try {
+      const db = await openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const store = tx.objectStore(STORE_NAME);
+        const req = store.getAll();
+
+        req.onsuccess = () => {
+          const records: CachedDocRecord[] = req.result || [];
+          const totalBytes = records.reduce((acc, curr) => acc + (curr.fileSize || curr.blob?.size || 0), 0);
+          resolve(totalBytes);
+        };
+
+        req.onerror = () => resolve(0);
+      });
+    } catch {
+      return 0;
+    }
+  }
+
+  /**
    * Evicts a document from local device storage (Disk Cleanup on deletion).
    */
   static async evict(id: string): Promise<void> {
@@ -128,7 +152,7 @@ export class PDFCacheManager {
   }
 
   /**
-   * Clears all cached documents for this student.
+   * Clears all cached documents for this student to free local disk space.
    */
   static async clearAll(): Promise<void> {
     try {
@@ -140,6 +164,31 @@ export class PDFCacheManager {
         req.onsuccess = () => resolve();
         req.onerror = () => resolve();
       });
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Retrieves last-read page bookmark for a document.
+   */
+  static getBookmark(docId: string): number {
+    if (typeof window === "undefined") return 1;
+    try {
+      const raw = localStorage.getItem(`student_portal_bookmark_${docId}`);
+      return raw ? parseInt(raw, 10) || 1 : 1;
+    } catch {
+      return 1;
+    }
+  }
+
+  /**
+   * Saves last-read page bookmark.
+   */
+  static setBookmark(docId: string, pageNum: number): void {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(`student_portal_bookmark_${docId}`, pageNum.toString());
     } catch {
       // ignore
     }

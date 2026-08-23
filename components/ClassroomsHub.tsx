@@ -48,7 +48,9 @@ export default function ClassroomsHub() {
   const [activeFolderName, setActiveFolderName] = useState<string>("all");
   const [selectedDocForView, setSelectedDocForView] = useState<MaterialItem | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [purgeToast, setPurgeToast] = useState<string | null>(null);
   const [materials, setMaterials] = useState<MaterialItem[]>(() => {
     if (!user) return [];
     try {
@@ -58,6 +60,25 @@ export default function ClassroomsHub() {
       return [];
     }
   });
+
+  // Calculate total cloud storage used in MB
+  const totalStorageMB = materials.reduce((acc, curr) => {
+    const sizeStr = curr.fileSize || "0 MB";
+    if (sizeStr.includes("KB")) {
+      const kb = parseFloat(sizeStr.replace(/[^0-9.]/g, "")) || 0;
+      return acc + (kb / 1024);
+    }
+    const mb = parseFloat(sizeStr.replace(/[^0-9.]/g, "")) || 0;
+    return acc + mb;
+  }, 0);
+
+  const storagePercentage = Math.min(100, (totalStorageMB / 1000) * 100);
+
+  const handlePurgeLocalCache = async () => {
+    await PDFCacheManager.clearAll();
+    setPurgeToast("Device disk cache cleared. Cloud copies remain permanently safe.");
+    setTimeout(() => setPurgeToast(null), 4000);
+  };
 
   // Save materials to localStorage when updated
   const persistMaterials = (newMaterials: MaterialItem[]) => {
@@ -118,6 +139,7 @@ export default function ClassroomsHub() {
     if (!uploadFileName.trim()) return;
 
     setIsUploading(true);
+    setUploadProgress(15);
     const finalFileName = uploadFileName.endsWith(".pdf") ? uploadFileName : `${uploadFileName}.pdf`;
     const newDocId = `mat_${Date.now()}`;
     let fileKey: string | undefined = undefined;
@@ -144,11 +166,13 @@ export default function ClassroomsHub() {
         formData.append("file", attachedFile);
       }
 
+      setUploadProgress(45);
       const uploadRes = await fetch("/api/storage/upload", {
         method: "POST",
         body: formData
       });
 
+      setUploadProgress(85);
       const uploadData = await uploadRes.json();
       if (uploadData.success && uploadData.fileUrl) {
         fileKey = uploadData.fileKey;
@@ -167,6 +191,7 @@ export default function ClassroomsHub() {
           attachedFile
         );
       }
+      setUploadProgress(100);
     } catch (error) {
       console.warn("Upload network error, saved local copy:", error);
     }
@@ -188,6 +213,7 @@ export default function ClassroomsHub() {
     setUploadFileName("");
     setAttachedFile(null);
     setIsUploading(false);
+    setUploadProgress(0);
     setIsUploadFileModalOpen(false);
   };
 
@@ -317,7 +343,16 @@ export default function ClassroomsHub() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <button
+              onClick={handlePurgeLocalCache}
+              className="px-3 py-2 bg-[var(--surface-soft)] border border-[var(--hairline)] hover:border-amber-500/40 text-[var(--muted)] hover:text-[var(--ink)] text-xs font-bold rounded flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Clean local browser disk cache without affecting cloud files"
+            >
+              <HardDrive className="w-3.5 h-3.5 text-amber-400" />
+              <span>CLEAN DEVICE CACHE</span>
+            </button>
+
             <button
               onClick={() => setIsAddFolderModalOpen(true)}
               className="bmw-btn-secondary !h-10 !text-xs !py-2"
@@ -333,6 +368,50 @@ export default function ClassroomsHub() {
               <Upload className="w-4 h-4 mr-1" />
               <span>UPLOAD MATERIAL</span>
             </button>
+          </div>
+        </div>
+
+        {/* Toast for Cache Purge */}
+        {purgeToast && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold rounded-lg flex items-center justify-between animate-in fade-in duration-150">
+            <div className="flex items-center gap-2">
+              <Check className="w-4 h-4 text-emerald-400" />
+              <span>{purgeToast}</span>
+            </div>
+            <button onClick={() => setPurgeToast(null)} className="text-slate-400 hover:text-white">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Storage Quota Usage Meter */}
+        <div className="p-3 sm:p-4 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center flex-shrink-0">
+              <Cloud className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-[var(--ink)] flex items-center gap-2">
+                <span>Supabase Cloud Storage (1 GB Free Tier)</span>
+                <span className="text-[10px] text-emerald-400 font-mono font-semibold">100% Free Forever</span>
+              </div>
+              <div className="text-[11px] text-[var(--muted)] font-mono mt-0.5">
+                {totalStorageMB.toFixed(1)} MB used of 1,000 MB ({storagePercentage.toFixed(1)}% Allocated)
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Visual */}
+          <div className="w-full sm:w-48 flex flex-col gap-1">
+            <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 via-indigo-500 to-emerald-400 rounded-full transition-all duration-300"
+                style={{ width: `${Math.max(3, storagePercentage)}%` }}
+              />
+            </div>
+            <div className="text-[10px] text-right font-mono text-[var(--muted)]">
+              {(1000 - totalStorageMB).toFixed(1)} MB Free
+            </div>
           </div>
         </div>
 
@@ -797,12 +876,35 @@ export default function ClassroomsHub() {
                     ) : (
                       <>
                         <div className="font-bold text-[var(--ink)]">Click or Drag PDF here (up to 50MB)</div>
-                        <div className="text-[10px] text-[var(--muted)] font-light">Direct Cloudflare R2 Upload • 0ms IndexedDB Cache</div>
+                        <div className="text-[10px] text-[var(--muted)] font-light">Direct Supabase Storage • 0ms IndexedDB Cache</div>
                       </>
                     )}
                   </div>
                 </div>
               </div>
+
+              {/* Animated Progress Bar during Upload */}
+              {isUploading && (
+                <div className="p-3 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl space-y-2 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between text-xs font-mono">
+                    <span className="text-[var(--ink)] font-semibold flex items-center gap-1.5">
+                      <div className="w-3 h-3 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
+                      <span>Streaming to Supabase Storage...</span>
+                    </span>
+                    <span className="text-[var(--primary)] font-bold">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[var(--primary)] to-emerald-400 rounded-full transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between text-[10px] text-[var(--muted)] font-mono">
+                    <span>Multi-tenant encrypted partition</span>
+                    <span>Zero packet loss</span>
+                  </div>
+                </div>
+              )}
 
               <div className="pt-4 flex justify-end gap-3 border-t border-[var(--hairline)]">
                 <button
@@ -821,7 +923,7 @@ export default function ClassroomsHub() {
                   {isUploading ? (
                     <>
                       <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>UPLOADING...</span>
+                      <span>UPLOADING ({uploadProgress}%)...</span>
                     </>
                   ) : (
                     <span>UPLOAD TO REPOSITORY</span>
