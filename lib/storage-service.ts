@@ -1,16 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase Storage Configuration (100% Free / NO Credit Card Required)
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const STORAGE_BUCKET = "course-materials";
 
-let supabaseClient: any = null;
-
-if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-  supabaseClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false }
-  });
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 export interface StorageUploadResponse {
@@ -28,64 +24,6 @@ export interface StorageViewResponse {
 }
 
 /**
- * Creates a pre-signed or direct upload destination on Supabase Storage (1GB Free, 0 Card).
- */
-export async function createUploadDestination(
-  userId: string,
-  fileName: string,
-  contentType: string = "application/pdf"
-): Promise<StorageUploadResponse> {
-  const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-  const versionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const fileKey = `${userId}/${Date.now()}_${sanitizedName}`;
-
-  if (!supabaseClient) {
-    // Zero-config simulated mode if Supabase keys not entered yet
-    return {
-      uploadUrl: `/api/storage/mock-upload?key=${encodeURIComponent(fileKey)}`,
-      fileKey,
-      versionId,
-      storageProvider: "simulated"
-    };
-  }
-
-  try {
-    // Generate signed upload URL in Supabase Storage
-    const { data, error } = await supabaseClient.storage
-      .from(STORAGE_BUCKET)
-      .createSignedUploadUrl(fileKey);
-
-    if (error || !data?.signedUrl) {
-      // If bucket is public or standard upload
-      const { data: publicData } = supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(fileKey);
-
-      return {
-        uploadUrl: publicData.publicUrl,
-        fileKey,
-        publicViewUrl: publicData.publicUrl,
-        versionId,
-        storageProvider: "supabase"
-      };
-    }
-
-    return {
-      uploadUrl: data.signedUrl,
-      fileKey,
-      versionId,
-      storageProvider: "supabase"
-    };
-  } catch {
-    return {
-      fileKey,
-      versionId,
-      storageProvider: "simulated"
-    };
-  }
-}
-
-/**
  * Creates a signed view URL for Supabase Storage or Google Drive fileId.
  */
 export async function createDocumentViewUrl(
@@ -93,7 +31,6 @@ export async function createDocumentViewUrl(
   versionId: string = "v1",
   googleDriveFileId?: string
 ): Promise<StorageViewResponse> {
-  // If Google Drive fileId is provided, route through direct stream proxy
   if (googleDriveFileId) {
     return {
       viewUrl: `/api/storage/drive-stream?fileId=${encodeURIComponent(googleDriveFileId)}`,
@@ -102,7 +39,8 @@ export async function createDocumentViewUrl(
     };
   }
 
-  if (!supabaseClient) {
+  const supabase = getSupabase();
+  if (!supabase) {
     return {
       viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
       versionId,
@@ -111,16 +49,12 @@ export async function createDocumentViewUrl(
   }
 
   try {
-    // Request a 1-hour signed read URL from Supabase Storage
-    const { data, error } = await supabaseClient.storage
+    // 1. First get public URL
+    const { data: pubData } = supabase.storage
       .from(STORAGE_BUCKET)
-      .createSignedUrl(fileKey, 3600);
+      .getPublicUrl(fileKey);
 
-    if (error || !data?.signedUrl) {
-      const { data: pubData } = supabaseClient.storage
-        .from(STORAGE_BUCKET)
-        .getPublicUrl(fileKey);
-
+    if (pubData?.publicUrl) {
       return {
         viewUrl: pubData.publicUrl,
         versionId,
@@ -128,10 +62,23 @@ export async function createDocumentViewUrl(
       };
     }
 
+    // 2. Or create signed URL
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(fileKey, 3600);
+
+    if (data?.signedUrl) {
+      return {
+        viewUrl: data.signedUrl,
+        versionId,
+        storageProvider: "supabase"
+      };
+    }
+
     return {
-      viewUrl: data.signedUrl,
+      viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
       versionId,
-      storageProvider: "supabase"
+      storageProvider: "simulated"
     };
   } catch {
     return {
@@ -143,13 +90,14 @@ export async function createDocumentViewUrl(
 }
 
 /**
- * Deletes a file from Supabase Storage to reclaim the free 1GB space.
+ * Deletes a file from Supabase Storage.
  */
 export async function deleteDocumentFromStorage(fileKey: string): Promise<boolean> {
-  if (!supabaseClient) return true;
+  const supabase = getSupabase();
+  if (!supabase) return true;
 
   try {
-    const { error } = await supabaseClient.storage
+    const { error } = await supabase.storage
       .from(STORAGE_BUCKET)
       .remove([fileKey]);
 
