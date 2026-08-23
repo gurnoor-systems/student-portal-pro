@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { 
   Brain, 
@@ -17,7 +17,9 @@ import {
   Flame, 
   BarChart3,
   Search,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  FileText
 } from "lucide-react";
 
 import { Flashcard, TieredFlashcardsResult } from "@/lib/types";
@@ -61,9 +63,11 @@ export default function FlashcardsHub() {
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
   const [aiGeneratedResult, setAiGeneratedResult] = useState<TieredFlashcardsResult | null>(null);
   const [aiActiveTab, setAiActiveTab] = useState<"all" | "easy" | "medium" | "hard">("all");
+  const [uploadedFileStatus, setUploadedFileStatus] = useState<{ name: string; size: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Saved documents from repository
-  const savedDocuments = useMemo(() => {
+  // Saved documents from repository state (so updates trigger re-renders)
+  const [savedDocsList, setSavedDocsList] = useState<any[]>(() => {
     if (!user) return [];
     try {
       const raw = localStorage.getItem(`student_portal_user_${user.id}_documents`);
@@ -71,7 +75,41 @@ export default function FlashcardsHub() {
     } catch {
       return [];
     }
-  }, [user]);
+  });
+
+  // Filter saved docs by user context
+  const savedDocuments = savedDocsList;
+
+  const handleDirectDocUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const contentText = (event.target?.result as string) || "";
+      if (!contentText.trim()) return;
+
+      const newDoc = {
+        id: `doc_${Date.now()}`,
+        courseCode: aiCourseCode,
+        title: file.name,
+        type: "Course Notes",
+        pageCount: 1,
+        content: [contentText]
+      };
+
+      const next = [newDoc, ...savedDocsList];
+      setSavedDocsList(next);
+      localStorage.setItem(`student_portal_user_${user.id}_documents`, JSON.stringify(next));
+      setAiSelectedDocTitle(newDoc.title);
+      setUploadedFileStatus({
+        name: file.name,
+        size: `${Math.round(file.size / 1024)} KB`
+      });
+    };
+
+    reader.readAsText(file);
+  };
 
   const persistCards = (next: Flashcard[]) => {
     setCards(next);
@@ -570,34 +608,85 @@ export default function FlashcardsHub() {
                 </div>
 
                 {aiSourceMode === "document" ? (
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[var(--muted)] mb-1">
-                      CHOOSE COURSE REPOSITORY DOCUMENT
-                    </label>
-                    {savedDocuments.length > 0 ? (
-                      <select
-                        value={aiSelectedDocTitle}
-                        onChange={(e) => setAiSelectedDocTitle(e.target.value)}
-                        className="w-full h-10 px-3 bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs font-semibold rounded-xl outline-none"
-                        required
+                  <div className="space-y-3">
+                    <input 
+                      type="file" 
+                      ref={fileInputRef} 
+                      onChange={handleDirectDocUpload} 
+                      accept=".txt,.md,.pdf,.doc,.docx,.json" 
+                      className="hidden" 
+                    />
+
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-mono uppercase text-[var(--muted)]">
+                        COURSE REPOSITORY DOCUMENT
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="text-xs text-[var(--primary)] hover:underline flex items-center gap-1 font-bold cursor-pointer"
                       >
-                        <option value="">Select a document...</option>
-                        {savedDocuments.map((doc: any) => (
-                          <option key={doc.id} value={doc.title}>
-                            {doc.courseCode} • {doc.title} ({doc.type || "Document"})
-                          </option>
-                        ))}
-                      </select>
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload New Document</span>
+                      </button>
+                    </div>
+
+                    {savedDocuments.length > 0 ? (
+                      <div className="space-y-2">
+                        <select
+                          value={aiSelectedDocTitle}
+                          onChange={(e) => {
+                            setAiSelectedDocTitle(e.target.value);
+                            setUploadedFileStatus(null);
+                          }}
+                          className="w-full h-10 px-3 bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs font-semibold rounded-xl outline-none"
+                          required
+                        >
+                          <option value="">Select a saved document...</option>
+                          {savedDocuments.map((doc: any) => (
+                            <option key={doc.id} value={doc.title}>
+                              {doc.courseCode} • {doc.title} ({doc.type || "Document"})
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center justify-between text-[11px] font-mono text-[var(--muted)]">
+                          <span>Or click upload button above to add a new document right here.</span>
+                        </div>
+                      </div>
                     ) : (
-                      <div className="p-4 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-xl text-xs text-[var(--muted)] text-center space-y-2">
-                        <BookOpen className="w-5 h-5 mx-auto text-[var(--muted)]" />
-                        <div>No saved documents in repository yet.</div>
+                      <div 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="p-6 border-2 border-dashed border-[var(--primary)]/40 hover:border-[var(--primary)] bg-[var(--surface-soft)] rounded-2xl text-center space-y-2 cursor-pointer transition-all hover:bg-[var(--primary)]/5 group"
+                      >
+                        <Upload className="w-8 h-8 text-[var(--primary)] mx-auto group-hover:scale-110 transition-transform" />
+                        <div className="text-xs font-bold text-[var(--ink)]">
+                          Click to Upload Course Document (.pdf, .docx, .txt, .md)
+                        </div>
+                        <p className="text-[11px] text-[var(--muted)] font-light max-w-sm mx-auto">
+                          File will be saved directly into your course repository and analyzed for flashcards.
+                        </p>
+                        <div className="pt-2">
+                          <span className="px-4 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-[11px] font-bold rounded-lg uppercase tracking-wider inline-flex items-center gap-1.5 shadow-sm">
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>Browse & Upload Document</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {uploadedFileStatus && (
+                      <div className="p-3 bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 font-mono text-xs rounded-xl flex items-center justify-between animate-in fade-in">
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                          <span>Attached: <strong>{uploadedFileStatus.name}</strong> ({uploadedFileStatus.size}) • Saved to {aiCourseCode} Documents</span>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setAiSourceMode("text")}
-                          className="text-[var(--primary)] font-bold underline cursor-pointer"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="text-xs text-[var(--primary)] hover:underline font-bold cursor-pointer"
                         >
-                          Switch to Paste Study Notes instead
+                          Replace
                         </button>
                       </div>
                     )}
