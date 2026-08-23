@@ -75,7 +75,8 @@ interface AuthContextType {
     sem: string, 
     major: string, 
     courses?: string[], 
-    syncGoogle?: boolean
+    syncGoogle?: boolean,
+    password?: string
   ) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -630,7 +631,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     semester: string = "Fall 2026",
     major: string = "Computer Science",
     initialCourses?: string[],
-    syncGoogleCalendar: boolean = true
+    syncGoogleCalendar: boolean = true,
+    password?: string
   ): Promise<{ success: boolean; error?: string }> => {
     await simulateNetworkLatency(600);
 
@@ -638,11 +640,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const accounts = getRegisteredAccounts();
     let account = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
 
+    const effectivePassword = password && password.trim().length >= 6 ? password.trim() : (account?.passwordHash || `google_oauth_${Date.now()}`);
+
     if (!account) {
       account = {
         id: `usr_g_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         email: trimmedEmail,
-        passwordHash: `google_oauth_${Date.now()}`,
+        passwordHash: effectivePassword,
         fullName: fullName.trim(),
         emailVerified: true,
         googleVerified: true,
@@ -661,8 +665,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       account.emailVerified = true;
       account.googleVerified = true;
+      if (password && password.trim().length >= 6) {
+        account.passwordHash = password.trim();
+      }
       account.lastLoginAt = new Date().toISOString();
       saveRegisteredAccounts(accounts);
+    }
+
+    // Sync to Server Repository (Guarantees multi-device login with master password)
+    try {
+      const deviceInfo = getDeviceDetails();
+      fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          account,
+          courses: initialCourses,
+          deviceInfo
+        })
+      }).catch(() => {});
+    } catch {
+      // ignore
     }
 
     const profile: UserProfile = {

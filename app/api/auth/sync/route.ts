@@ -242,7 +242,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ 
           success: false, 
           notFound: true,
-          error: "No verified account found with this email on this portal." 
+          error: "Account not registered. Please switch to 'Create Account' to register your student profile first." 
         }, { status: 404 });
       }
 
@@ -433,7 +433,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 7. REQUEST RESET PIN & DISPATCH VIA RESEND
+    // 7. REQUEST RESET PIN & DISPATCH VIA GMAIL SMTP / RESEND
     if (action === "request-reset") {
       const { email } = body;
       if (!email) {
@@ -441,6 +441,16 @@ export async function POST(req: NextRequest) {
       }
 
       const trimmedEmail = email.trim().toLowerCase();
+      
+      // Check if account exists
+      const account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
+      if (!account) {
+        return NextResponse.json({ 
+          success: false, 
+          error: "No registered student account found with this email. Please click 'Create Account' to register first." 
+        }, { status: 404 });
+      }
+
       const pin = Math.floor(100000 + Math.random() * 900000).toString();
       
       const pinRecord: ResetPinRecord = {
@@ -451,16 +461,15 @@ export async function POST(req: NextRequest) {
       pinsStore.set(trimmedEmail, pinRecord);
       syncToDisk();
 
-      // Look up student name if available
-      const account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
-      const studentName = account?.fullName || "Student";
+      const studentName = account.fullName || "Student";
 
-      // Dispatch real email via Resend
+      // Dispatch real email via Gmail SMTP (Primary) / Resend (Fallback)
       const emailResult = await sendPasswordResetEmailViaResend(trimmedEmail, pin, studentName);
 
       return NextResponse.json({ 
         success: true, 
         delivered: emailResult.delivered,
+        provider: emailResult.provider,
         message: "A 6-digit recovery code has been dispatched to your email address." 
       });
     }

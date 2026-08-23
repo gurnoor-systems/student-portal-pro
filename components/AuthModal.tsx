@@ -14,14 +14,14 @@ import {
   ShieldCheck, 
   GraduationCap, 
   Loader2,
-  Search,
   Calendar,
   Check,
-  Plus,
   CheckCircle2,
-  Send,
+  KeyRound,
   Eye,
-  EyeOff
+  EyeOff,
+  Lock,
+  RotateCcw
 } from "lucide-react";
 
 interface AuthModalProps {
@@ -76,8 +76,16 @@ const SUGGESTED_DEGREES = [
 ];
 
 export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: AuthModalProps) {
-  const { signInWithPassword, signUpWithPassword, signInWithGoogleCustom, resendEmailConfirmation } = useAuth();
-  const [tab, setTab] = useState<"signin" | "signup">(initialTab === "signup" ? "signup" : "signin");
+  const { 
+    signInWithPassword, 
+    signUpWithPassword, 
+    signInWithGoogleCustom, 
+    resendEmailConfirmation,
+    sendPasswordResetEmail,
+    resetPasswordWithCode
+  } = useAuth();
+  
+  const [tab, setTab] = useState<"signin" | "signup" | "forgot">(initialTab === "signup" ? "signup" : "signin");
   
   // 2-Step Flow: Step 1 (Credentials) -> Step 2 (Campus & Semester Details)
   const [step, setStep] = useState<1 | 2>(1);
@@ -106,28 +114,41 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [resendStatus, setResendStatus] = useState<string | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Google OAuth Dialog state
   const [isGooglePickerOpen, setIsGooglePickerOpen] = useState(false);
   const [googleEmail, setGoogleEmail] = useState("");
   const [googleName, setGoogleName] = useState("");
+  const [googlePassword, setGooglePassword] = useState("");
+  const [googleConfirmPassword, setGoogleConfirmPassword] = useState("");
+  const [showGooglePassword, setShowGooglePassword] = useState(false);
   const [googleUni, setGoogleUni] = useState("University of Waterloo");
   const [googleDegree, setGoogleDegree] = useState("B.Tech (Bachelor of Technology)");
   const [googleSemester, setGoogleSemester] = useState("Fall 2026");
+
+  // Forgot Password / OTP Flow States
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   if (!isOpen) return null;
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setLoading(true);
     const res = await signInWithPassword(email, password);
     setLoading(false);
     if (res.success) {
       onClose();
     } else {
-      setError(res.error || "Could not sign in. Please check your credentials.");
+      setError(res.error || "Account not registered. Please switch to 'Create Account' to register your student profile first.");
       if (res.emailUnconfirmed) {
         setIsConfirmationSent(true);
       }
@@ -193,9 +214,22 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     }
   };
 
+  // Google Verified Sign-Up with Master Password
   const handleGoogleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!googleEmail || !googleName) return;
+    if (!googleEmail || !googleName) {
+      setError("Please enter your student Google email and full name.");
+      return;
+    }
+    if (!googlePassword || googlePassword.length < 6) {
+      setError("Please create a master password with at least 6 characters.");
+      return;
+    }
+    if (googleConfirmPassword && googlePassword !== googleConfirmPassword) {
+      setError("Master passwords do not match. Please check and retype.");
+      return;
+    }
+
     setLoading(true);
     const res = await signInWithGoogleCustom(
       googleEmail, 
@@ -205,7 +239,8 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
       googleSemester || "Fall 2026",
       "Computer Science",
       selectedCourses,
-      syncGoogleCalendar
+      syncGoogleCalendar,
+      googlePassword
     );
     setLoading(false);
     if (res.success) {
@@ -213,6 +248,57 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
       onClose();
     } else {
       setError(res.error || "Google authentication failed.");
+    }
+  };
+
+  // Forgot Password Step 1: Send 6-Digit Code via Email
+  const handleRequestResetCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+    if (!forgotEmail) {
+      setError("Please enter your registered student email.");
+      return;
+    }
+    setLoading(true);
+    const res = await sendPasswordResetEmail(forgotEmail);
+    setLoading(false);
+    if (res.success) {
+      setSuccessMessage("A 6-digit verification code has been dispatched to your email!");
+      setForgotStep(2);
+    } else {
+      setError(res.error || "Could not send verification code. Ensure your account is registered.");
+    }
+  };
+
+  // Forgot Password Step 2: Verify Code & Reset Password
+  const handleVerifyCodeAndReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+    if (!resetCode || !newPassword) {
+      setError("Please enter the 6-digit code and your new password.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
+      return;
+    }
+    if (confirmNewPassword && newPassword !== confirmNewPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    const res = await resetPasswordWithCode(forgotEmail, resetCode, newPassword);
+    setLoading(false);
+    if (res.success) {
+      setSuccessMessage("Password reset successfully! Logging you in...");
+      setTimeout(() => {
+        onClose();
+      }, 1000);
+    } else {
+      setError(res.error || "Invalid or expired recovery code. Please check your inbox.");
     }
   };
 
@@ -247,18 +333,22 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
             <span>STUDENT PORTAL PRO</span>
           </div>
           <h2 className="text-2xl font-bold text-white">
-            {tab === "signin" 
-              ? "Welcome Back" 
-              : step === 1 
-                ? "Create Student Account" 
-                : "Campus & Semester Setup"}
+            {tab === "forgot" 
+              ? "Account Recovery"
+              : tab === "signin" 
+                ? "Welcome Back" 
+                : step === 1 
+                  ? "Create Student Account" 
+                  : "Campus & Semester Setup"}
           </h2>
           <p className="text-xs text-slate-400 font-light">
-            {tab === "signin" 
-              ? "Sign in with your student email or Google account." 
-              : step === 1 
-                ? "Step 1 of 2: Enter student identity and credentials." 
-                : "Step 2 of 2: Set university, semester, and Google Calendar sync."}
+            {tab === "forgot"
+              ? "Recover your student portal password via 6-digit email code."
+              : tab === "signin" 
+                ? "Sign in with your student email or Google account." 
+                : step === 1 
+                  ? "Step 1 of 2: Enter student identity and credentials." 
+                  : "Step 2 of 2: Set university, semester, and Google Calendar sync."}
           </p>
         </div>
 
@@ -282,11 +372,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
           </div>
         )}
 
-        {/* Sign In vs Create Account Tabs (only on step 1) */}
-        {step === 1 && !isGooglePickerOpen && (
+        {/* Sign In vs Create Account Tabs (only on step 1 when not in forgot mode) */}
+        {step === 1 && !isGooglePickerOpen && tab !== "forgot" && (
           <div className="grid grid-cols-2 border-b border-white/10 mb-6 text-xs text-center font-mono">
             <button
-              onClick={() => { setTab("signin"); setError(null); }}
+              onClick={() => { setTab("signin"); setError(null); setSuccessMessage(null); }}
               className={`py-2.5 border-b-2 transition-all cursor-pointer ${
                 tab === "signin" 
                   ? "border-[#1c69d4] text-white font-bold bg-[#141b24]" 
@@ -296,7 +386,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               SIGN IN
             </button>
             <button
-              onClick={() => { setTab("signup"); setError(null); }}
+              onClick={() => { setTab("signup"); setError(null); setSuccessMessage(null); }}
               className={`py-2.5 border-b-2 transition-all cursor-pointer ${
                 tab === "signup" 
                   ? "border-[#1c69d4] text-white font-bold bg-[#141b24]" 
@@ -312,6 +402,13 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
           <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium flex items-center gap-2 rounded-xl">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-3 mb-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium flex items-center gap-2 rounded-xl">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{successMessage}</span>
           </div>
         )}
 
@@ -338,9 +435,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
           </div>
         )}
 
-        {/* GOOGLE ACCOUNT ONE-CLICK SIGN IN POPUP */}
+        {/* ========================================================================= */}
+        {/* VIEW 1: GOOGLE VERIFIED SIGN-UP WITH MASTER PASSWORD                      */}
+        {/* ========================================================================= */}
         {isGooglePickerOpen ? (
-          <form onSubmit={handleGoogleSubmit} className="space-y-4 animate-in fade-in duration-150">
+          <form onSubmit={handleGoogleSubmit} className="space-y-3.5 animate-in fade-in duration-150">
             <div className="p-3 bg-[#131b26] border border-white/10 text-xs text-white space-y-1 rounded-xl">
               <div className="font-bold flex items-center gap-2">
                 <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
@@ -350,10 +449,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                 </svg>
                 <span>Google Verified Authentication</span>
-                <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 text-[9px] font-mono">AUTOMATED IDENTITY</span>
+                <span className="ml-auto px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 text-[9px] font-mono uppercase font-bold rounded">
+                  Automated Identity
+                </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-light">
-                Google automatically verifies your student email and identity token with zero manual confirmation links required.
+              <p className="text-[11px] text-slate-400">
+                Google verifies your student email and identity token with zero manual confirmation links required.
               </p>
             </div>
 
@@ -367,7 +468,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 value={googleEmail}
                 onChange={(e) => setGoogleEmail(e.target.value)}
                 placeholder="student@uwaterloo.ca"
-                className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
               />
             </div>
 
@@ -381,8 +482,52 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 value={googleName}
                 onChange={(e) => setGoogleName(e.target.value)}
                 placeholder="e.g. Alex Rivera"
-                className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl"
               />
+            </div>
+
+            {/* Mandatory Master Password Setup on Google Registration */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                  <span>MASTER PASSWORD</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowGooglePassword(!showGooglePassword)}
+                    className="text-[10px] text-slate-400 hover:text-white"
+                  >
+                    {showGooglePassword ? "Hide" : "Show"}
+                  </button>
+                </label>
+                <div className="relative">
+                  <input
+                    type={showGooglePassword ? "text" : "password"}
+                    required
+                    value={googlePassword}
+                    onChange={(e) => setGooglePassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                  />
+                  <Lock className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-3 pointer-events-none" />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                  CONFIRM PASSWORD
+                </label>
+                <div className="relative">
+                  <input
+                    type={showGooglePassword ? "text" : "password"}
+                    required
+                    value={googleConfirmPassword}
+                    onChange={(e) => setGoogleConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                  />
+                  <Lock className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-3 pointer-events-none" />
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-2">
@@ -429,17 +574,24 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </select>
             </div>
 
-            {/* Google Calendar Sync Option */}
+            {/* Google Calendar Sync Option with Explanatory Badges */}
             <div 
               onClick={() => setSyncGoogleCalendar(!syncGoogleCalendar)}
-              className="p-3 bg-[#090d12] border border-white/10 flex items-center justify-between cursor-pointer hover:border-[#1c69d4] transition-colors rounded-xl"
+              className="p-3 bg-[#090d12] border border-white/10 flex flex-col gap-1 cursor-pointer hover:border-[#1c69d4] transition-colors rounded-xl"
             >
-              <div className="flex items-center gap-2 text-xs">
-                <Calendar className="w-4 h-4 text-[#4285F4]" />
-                <span>Sync with Google Calendar (2-Way)</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="w-4 h-4 text-[#4285F4]" />
+                  <span className="font-semibold text-white">Sync with Google Calendar (2-Way)</span>
+                </div>
+                <div className={`w-4 h-4 border flex items-center justify-center rounded ${syncGoogleCalendar ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"}`}>
+                  {syncGoogleCalendar && <Check className="w-3 h-3" />}
+                </div>
               </div>
-              <div className={`w-4 h-4 border flex items-center justify-center rounded ${syncGoogleCalendar ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"}`}>
-                {syncGoogleCalendar && <Check className="w-3 h-3" />}
+              <div className="text-[10px] text-slate-400 pl-6">
+                {syncGoogleCalendar 
+                  ? "⚡ Live Sync: Exam & assignment alerts dispatch to your phone & Google Calendar." 
+                  : "🔒 Local Only: Schedules remain 100% private inside your portal."}
               </div>
             </div>
 
@@ -454,24 +606,191 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               <button
                 type="submit"
                 disabled={loading}
-                className="w-2/3 py-3 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20"
+                className="w-2/3 py-3 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer"
               >
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>VERIFYING GOOGLE TOKEN...</span>
+                    <span>LAUNCHING PORTAL...</span>
                   </>
                 ) : (
                   <>
-                    <span>CONTINUE WITH GOOGLE</span>
+                    <span>COMPLETE GOOGLE SIGN-UP</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </div>
           </form>
+
+        ) : tab === "forgot" ? (
+          /* ========================================================================= */
+          /* VIEW 2: FORGOT PASSWORD 6-DIGIT EMAIL CODE (OTP) RECOVERY FLOW            */
+          /* ========================================================================= */
+          <div className="space-y-4 animate-in fade-in duration-150">
+            {forgotStep === 1 ? (
+              <form onSubmit={handleRequestResetCode} className="space-y-4">
+                <div className="p-3 bg-[#131b26] border border-white/10 text-xs text-white space-y-1 rounded-xl">
+                  <div className="font-bold flex items-center gap-2 text-[#d4af37]">
+                    <KeyRound className="w-4 h-4" />
+                    <span>6-Digit Verification Code Recovery</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Enter your registered student email address. We will dispatch a 6-digit recovery PIN to your inbox.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                    STUDENT EMAIL
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="student@uwaterloo.ca"
+                    className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 cursor-pointer rounded-xl shadow-lg shadow-blue-500/20"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>DISPATCHING 6-DIGIT CODE...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>SEND VERIFICATION CODE</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
+                </button>
+
+                <div className="text-center pt-2">
+                  <button
+                    type="button"
+                    onClick={() => { setTab("signin"); setError(null); setSuccessMessage(null); }}
+                    className="text-xs text-slate-400 hover:text-white font-mono flex items-center justify-center gap-1 mx-auto"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyCodeAndReset} className="space-y-4">
+                <div className="p-3 bg-[#131b26] border border-emerald-500/30 text-xs text-emerald-300 space-y-1 rounded-xl">
+                  <div className="font-bold flex items-center gap-2 text-emerald-400">
+                    <Mail className="w-4 h-4" />
+                    <span>Code Dispatched to {forgotEmail}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Please check your inbox (or spam) and enter the 6-digit recovery PIN below.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                    ENTER 6-DIGIT RECOVERY PIN
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={resetCode}
+                    onChange={(e) => setResetCode(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="123456"
+                    className="w-full h-12 text-center tracking-[8px] font-mono text-xl font-bold bg-[#090d12] border border-[#1c69d4] text-white focus:ring-2 focus:ring-[#1c69d4]/30 outline-none rounded-xl"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                      <span>NEW PASSWORD</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="text-[10px] text-slate-400 hover:text-white"
+                      >
+                        {showNewPassword ? "Hide" : "Show"}
+                      </button>
+                    </label>
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Min 6 chars"
+                      className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                      CONFIRM NEW PASSWORD
+                    </label>
+                    <input
+                      type={showNewPassword ? "text" : "password"}
+                      required
+                      value={confirmNewPassword}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-12 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 cursor-pointer rounded-xl shadow-lg shadow-emerald-500/20"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>VERIFYING CODE & RESETTING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>VERIFY CODE & RESET PASSWORD</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between text-xs text-slate-400 font-mono pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setForgotStep(1)}
+                    className="hover:text-white flex items-center gap-1"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>Resend Code</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => { setTab("signin"); setError(null); setSuccessMessage(null); }}
+                    className="hover:text-white flex items-center gap-1"
+                  >
+                    <span>Back to Sign In</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+
         ) : tab === "signin" ? (
-          /* TAB 1: SIGN IN */
+          /* ========================================================================= */
+          /* VIEW 3: SIGN IN TAB (STRICT REGISTRATION GATE + FORGOT PASSWORD LINK)     */
+          /* ========================================================================= */
           <div className="space-y-4">
             <button
               onClick={() => setIsGooglePickerOpen(true)}
@@ -512,19 +831,43 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </div>
 
               <div>
-                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                  PASSWORD
-                </label>
-                <input
-                  type="password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
-                  required
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-mono uppercase text-slate-300">
+                    PASSWORD
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgot");
+                      setForgotStep(1);
+                      setForgotEmail(email || "");
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-[11px] text-[#60a5fa] hover:text-white font-mono transition-colors cursor-pointer"
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-3 text-slate-400 hover:text-white"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -546,12 +889,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </button>
             </form>
           </div>
+
         ) : step === 1 ? (
-          /* STEP 1: CREATE ACCOUNT (CREDENTIALS) */
-          <div className="space-y-4 animate-in fade-in duration-150">
+          /* ========================================================================= */
+          /* VIEW 4: STEP 1: CREATE ACCOUNT (CREDENTIALS)                              */
+          /* ========================================================================= */
+          <div className="space-y-4">
             <button
               onClick={() => setIsGooglePickerOpen(true)}
-              disabled={loading}
               className="w-full h-12 border border-white/15 bg-[#141b24] hover:bg-[#1a2330] text-white text-xs font-bold tracking-[0.5px] uppercase flex items-center justify-center gap-3 transition-colors cursor-pointer rounded-xl"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -576,11 +921,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </label>
                 <input
                   type="text"
+                  required
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="Enter your full name"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
-                  required
                 />
               </div>
 
@@ -590,11 +935,11 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </label>
                 <input
                   type="email"
+                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="yourname@university.edu"
-                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
-                  required
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                 />
               </div>
 
@@ -606,21 +951,19 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer"
+                    className="text-[11px] text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer font-mono"
                   >
-                    {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
                     <span>{showPassword ? "Hide" : "Show"}</span>
                   </button>
                 </div>
                 <input
                   type={showPassword ? "text" : "password"}
-                  autoCapitalize="none"
-                  autoCorrect="off"
+                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="••••••••"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
-                  required
                 />
               </div>
 
@@ -630,26 +973,12 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </label>
                 <input
                   type={showPassword ? "text" : "password"}
-                  autoCapitalize="none"
-                  autoCorrect="off"
+                  required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className={`w-full h-11 px-3 bg-[#090d12] border text-sm text-white outline-none rounded-xl font-mono ${
-                    confirmPassword && confirmPassword !== password 
-                      ? "border-red-500/50 focus:border-red-500" 
-                      : confirmPassword && confirmPassword === password 
-                        ? "border-emerald-500/50 focus:border-emerald-500"
-                        : "border-white/15 focus:border-[#1c69d4]"
-                  }`}
-                  required
+                  placeholder="••••••••"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                 />
-                {confirmPassword && confirmPassword === password && (
-                  <div className="text-[10px] text-emerald-400 font-mono mt-1 flex items-center gap-1">
-                    <Check className="w-3 h-3" />
-                    <span>Passwords match perfectly</span>
-                  </div>
-                )}
               </div>
 
               <button
@@ -661,56 +990,76 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </button>
             </form>
           </div>
+
         ) : (
-          /* STEP 2: UNIVERSITY, SEMESTER & CALENDAR SYNC SETUP */
-          <div className="space-y-4 animate-in fade-in duration-150">
-            
-            {/* University Selection */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-mono uppercase text-slate-300">
-                CAMPUS / UNIVERSITY
+          /* ========================================================================= */
+          /* VIEW 5: STEP 2: CAMPUS, DEGREE & ENROLLMENT SETUP                         */
+          /* ========================================================================= */
+          <div className="space-y-4 animate-in fade-in duration-200">
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                UNIVERSITY / CAMPUS
               </label>
-              <div className="relative">
+              <input
+                type="text"
+                list="university-list"
+                value={university}
+                onChange={(e) => setUniversity(e.target.value)}
+                placeholder="e.g. University of Waterloo"
+                className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+              />
+              <datalist id="university-list">
+                {POPULAR_UNIVERSITIES.map((u, i) => (
+                  <option key={i} value={u} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                  SEMESTER / TERM
+                </label>
                 <input
                   type="text"
-                  value={university}
-                  onChange={(e) => setUniversity(e.target.value)}
-                  placeholder="Type or select university..."
-                  className="w-full h-10 pl-9 pr-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                  list="semester-list"
+                  value={semester}
+                  onChange={(e) => setSemester(e.target.value)}
+                  placeholder="e.g. Fall 2026"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
                 />
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5" />
+                <datalist id="semester-list">
+                  {SUGGESTED_SEMESTERS.map((s, i) => (
+                    <option key={i} value={s} />
+                  ))}
+                </datalist>
               </div>
 
-              <div className="flex flex-wrap gap-1 pt-1">
-                {POPULAR_UNIVERSITIES.slice(0, 4).map((uni, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setUniversity(uni)}
-                    className={`text-[10px] px-2.5 py-1 border transition-colors cursor-pointer rounded-lg ${
-                      university === uni
-                        ? "bg-[#1c69d4] border-[#1c69d4] text-white font-bold"
-                        : "bg-[#141b24] border-white/10 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {uni}
-                  </button>
-                ))}
+              <div>
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                  MAJOR / CONCENTRATION
+                </label>
+                <input
+                  type="text"
+                  value={major}
+                  onChange={(e) => setMajor(e.target.value)}
+                  placeholder="e.g. Computer Science"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                />
               </div>
             </div>
 
-            {/* Degree Selection */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-mono uppercase text-slate-300">
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
                 DEGREE / PROGRAM
               </label>
               <select
                 value={degree}
                 onChange={(e) => setDegree(e.target.value)}
-                className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-medium"
+                className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
               >
-                {SUGGESTED_DEGREES.map((deg, dIdx) => (
-                  <option key={dIdx} value={deg} className="bg-[#0f141c] text-white">
+                {SUGGESTED_DEGREES.map((deg, i) => (
+                  <option key={i} value={deg} className="bg-[#0f141c] text-white">
                     {deg}
                   </option>
                 ))}
@@ -718,122 +1067,84 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
             </div>
 
             {degree === "Other (Custom Degree / Program)..." && (
-              <div className="space-y-1.5 animate-in fade-in">
-                <label className="block text-[11px] font-mono uppercase text-[#d4af37]">
-                  ENTER CUSTOM DEGREE / PROGRAM
+              <div className="animate-in fade-in duration-150">
+                <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
+                  SPECIFY YOUR PROGRAM NAME
                 </label>
                 <input
                   type="text"
-                  required
                   value={customDegreeText}
                   onChange={(e) => setCustomDegreeText(e.target.value)}
-                  placeholder="e.g. B.S. in Data Science, Integrated M.Tech..."
-                  className="w-full h-10 px-3 bg-[#090d12] border border-[#d4af37]/50 text-xs text-white focus:border-[#d4af37] outline-none rounded-xl"
+                  placeholder="e.g. Dual Degree in AI & Neuroscience"
+                  className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
                 />
               </div>
             )}
 
-            {/* Semester / Term Selection */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-mono uppercase text-slate-300">
-                ACTIVE SEMESTER / TERM
+            <div>
+              <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1.5">
+                ENROLLED COURSES (SELECT INITIAL SUBJECTS)
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={semester}
-                  onChange={(e) => setSemester(e.target.value)}
-                  placeholder="e.g. Fall 2026, Semester 3, Term 2A"
-                  className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl"
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-1 pt-1">
-                {SUGGESTED_SEMESTERS.slice(0, 5).map((sem, sIdx) => (
-                  <button
-                    key={sIdx}
-                    type="button"
-                    onClick={() => setSemester(sem)}
-                    className={`text-[10px] px-2.5 py-1 border transition-colors cursor-pointer rounded-lg ${
-                      semester === sem
-                        ? "bg-[#d4af37] border-[#d4af37] text-slate-900 font-bold"
-                        : "bg-[#141b24] border-white/10 text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {sem}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Quick Course Chips */}
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-mono uppercase text-slate-300">
-                ACTIVE ENROLLED COURSES
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {SUGGESTED_COURSES.map((course, cIdx) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {SUGGESTED_COURSES.map((course, idx) => {
                   const isSelected = selectedCourses.includes(course);
                   return (
                     <button
-                      key={cIdx}
+                      key={idx}
                       type="button"
                       onClick={() => toggleCourse(course)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border flex items-center gap-1.5 transition-colors cursor-pointer ${
-                        isSelected
-                          ? "bg-[#16202c] border-[#d4af37] text-white font-medium"
-                          : "bg-[#090d12] border-white/10 text-slate-400 hover:text-white"
+                      className={`p-2.5 text-xs text-left border rounded-xl flex items-center justify-between transition-all cursor-pointer ${
+                        isSelected 
+                          ? "bg-[var(--primary)]/15 border-[var(--primary)] text-white font-bold" 
+                          : "bg-[#090d12] border-white/10 text-slate-400 hover:border-white/20"
                       }`}
                     >
-                      {isSelected ? <Check className="w-3 h-3 text-[#d4af37]" /> : <Plus className="w-3 h-3" />}
-                      <span>{course.split(" - ")[0]}</span>
+                      <span className="truncate pr-2">{course}</span>
+                      <div className={`w-4 h-4 border flex items-center justify-center rounded flex-shrink-0 ${
+                        isSelected ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* Google Calendar 2-Way Live Sync Toggle */}
+            {/* Google Calendar Sync Option with Explanatory Badges */}
             <div 
               onClick={() => setSyncGoogleCalendar(!syncGoogleCalendar)}
-              className="p-3 bg-[#131b26] border border-blue-500/30 flex items-center justify-between cursor-pointer hover:border-[#1c69d4] transition-colors rounded-xl"
+              className="p-3 bg-[#090d12] border border-white/10 flex flex-col gap-1 cursor-pointer hover:border-[#1c69d4] transition-colors rounded-xl"
             >
-              <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded bg-[#4285F4]/20 border border-[#4285F4]/40 flex items-center justify-center">
-                  <Calendar className="w-3.5 h-3.5 text-[#4285F4]" />
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs">
+                  <Calendar className="w-4 h-4 text-[#4285F4]" />
+                  <span className="font-semibold text-white">Sync with Google Calendar (2-Way)</span>
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <span>Sync with Google Calendar</span>
-                    <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 text-[9px] font-mono">2-WAY LIVE</span>
-                  </div>
-                  <div className="text-[10px] text-slate-400 font-light">
-                    Auto-sync deliverable deadlines, exams, and lecture reminders.
-                  </div>
+                <div className={`w-4 h-4 border flex items-center justify-center rounded ${syncGoogleCalendar ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"}`}>
+                  {syncGoogleCalendar && <Check className="w-3 h-3" />}
                 </div>
               </div>
-
-              <div className={`w-4 h-4 border flex items-center justify-center rounded ${syncGoogleCalendar ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"}`}>
-                {syncGoogleCalendar && <Check className="w-3 h-3" />}
+              <div className="text-[10px] text-slate-400 pl-6">
+                {syncGoogleCalendar 
+                  ? "⚡ Live Sync: Exam & assignment alerts dispatch to your phone & Google Calendar." 
+                  : "🔒 Local Only: Schedules remain 100% private inside your portal."}
               </div>
             </div>
 
-            {/* Navigation & Submit Controls */}
             <div className="flex gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="w-1/3 py-3 border border-white/15 text-slate-300 hover:text-white text-xs font-bold uppercase transition-colors flex items-center justify-center gap-1.5 rounded-xl cursor-pointer"
+                className="w-1/3 py-3 border border-white/15 text-slate-300 hover:text-white text-xs font-bold uppercase transition-colors rounded-xl cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span>BACK</span>
+                BACK
               </button>
-
               <button
                 type="button"
                 onClick={handleFinalSignUp}
                 disabled={loading}
-                className="w-2/3 py-3 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-blue-500/20 rounded-xl"
+                className="w-2/3 py-3 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase tracking-[1px] transition-all flex items-center justify-center gap-2 rounded-xl cursor-pointer shadow-lg shadow-blue-500/20"
               >
                 {loading ? (
                   <>
@@ -848,7 +1159,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 )}
               </button>
             </div>
-
           </div>
         )}
 
