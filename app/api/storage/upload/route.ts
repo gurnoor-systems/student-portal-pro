@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
     const courseCode = (formData.get("courseCode") as string | null) || "CS 341";
 
     const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
-    const fileKey = `${userId}/${Date.now()}_${sanitizedName}`;
+    // Save directly in root of bucket so it shows up immediately in Supabase files list
+    const fileKey = `${Date.now()}_${sanitizedName}`;
     const versionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     const supabase = getSupabaseClient();
