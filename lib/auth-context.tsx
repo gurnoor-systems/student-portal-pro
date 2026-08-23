@@ -295,65 +295,70 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 1. Check Supabase if configured
     const supabase = createClient();
     if (supabase) {
-      const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password: pass
-      });
-      if (supaErr) {
-        if (supaErr.message.toLowerCase().includes("email not confirmed")) {
-          return { 
-            success: false, 
-            error: "Please confirm your student email before signing in. Check your inbox for the Supabase verification link.",
-            emailUnconfirmed: true 
+      try {
+        const { data: supaData, error: supaErr } = await supabase.auth.signInWithPassword({
+          email: trimmedEmail,
+          password: pass
+        });
+        if (supaErr) {
+          if (supaErr.message.toLowerCase().includes("email not confirmed")) {
+            return { 
+              success: false, 
+              error: "Please confirm your student email before signing in. Check your inbox for the Supabase verification link.",
+              emailUnconfirmed: true 
+            };
+          }
+          console.warn("Supabase signin notice, checking server/local store:", supaErr.message);
+        } else if (supaData?.user) {
+          const meta = supaData.user.user_metadata || {};
+          const profile: UserProfile = {
+            id: supaData.user.id,
+            email: supaData.user.email || trimmedEmail,
+            fullName: meta.full_name || "Student",
+            emailVerified: true,
+            googleVerified: false,
+            university: meta.university || "University of Waterloo",
+            degree: meta.degree || "Bachelor of Technology (B.Tech)",
+            major: meta.major || "Computer Science",
+            semester: meta.semester || "Fall 2026",
+            googleCalendarSynced: meta.google_calendar_synced ?? true,
+            densityPreference: meta.density_preference || "comfortable",
+            provider: "email",
+            createdAt: supaData.user.created_at || new Date().toISOString(),
+            lastLoginAt: new Date().toISOString(),
+            activeSessions: [{
+              deviceId: deviceInfo.deviceId,
+              deviceName: deviceInfo.deviceName,
+              deviceType: deviceInfo.deviceType,
+              browser: deviceInfo.browser,
+              os: deviceInfo.os,
+              loginTimestamp: new Date().toISOString(),
+              lastActiveTimestamp: new Date().toISOString(),
+              isCurrentDevice: true
+            }]
           };
+
+          setUser(profile);
+          localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+          ensureUserDataSeeded(profile.id);
+          loadUserData(profile.id);
+
+          // Notify server for multi-device sync
+          fetch("/api/auth/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "login",
+              email: trimmedEmail,
+              password: pass,
+              deviceInfo
+            })
+          }).catch(() => {});
+
+          return { success: true };
         }
-      } else if (supaData?.user) {
-        const meta = supaData.user.user_metadata || {};
-        const profile: UserProfile = {
-          id: supaData.user.id,
-          email: supaData.user.email || trimmedEmail,
-          fullName: meta.full_name || "Student",
-          emailVerified: true,
-          googleVerified: false,
-          university: meta.university || "University of Waterloo",
-          degree: meta.degree || "Bachelor of Technology (B.Tech)",
-          major: meta.major || "Computer Science",
-          semester: meta.semester || "Fall 2026",
-          googleCalendarSynced: meta.google_calendar_synced ?? true,
-          densityPreference: meta.density_preference || "comfortable",
-          provider: "email",
-          createdAt: supaData.user.created_at || new Date().toISOString(),
-          lastLoginAt: new Date().toISOString(),
-          activeSessions: [{
-            deviceId: deviceInfo.deviceId,
-            deviceName: deviceInfo.deviceName,
-            deviceType: deviceInfo.deviceType,
-            browser: deviceInfo.browser,
-            os: deviceInfo.os,
-            loginTimestamp: new Date().toISOString(),
-            lastActiveTimestamp: new Date().toISOString(),
-            isCurrentDevice: true
-          }]
-        };
-
-        setUser(profile);
-        localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
-        ensureUserDataSeeded(profile.id);
-        loadUserData(profile.id);
-
-        // Notify server for multi-device sync
-        fetch("/api/auth/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "login",
-            email: trimmedEmail,
-            password: pass,
-            deviceInfo
-          })
-        }).catch(() => {});
-
-        return { success: true };
+      } catch (networkErr) {
+        console.warn("Supabase signin unreachable, falling back to local/server accounts:", networkErr);
       }
     }
 
@@ -519,21 +524,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Call Supabase signUp if configured
     const supabase = createClient();
     if (supabase) {
-      const { error: supaErr } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password: pass,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-            university: university.trim(),
-            degree: degree.trim(),
-            semester: semester.trim(),
-            major: major.trim()
+      try {
+        const { error: supaErr } = await supabase.auth.signUp({
+          email: trimmedEmail,
+          password: pass,
+          options: {
+            data: {
+              full_name: fullName.trim(),
+              university: university.trim(),
+              degree: degree.trim(),
+              semester: semester.trim(),
+              major: major.trim()
+            }
+          }
+        });
+        if (supaErr) {
+          console.warn("Supabase signup notice, proceeding with server account registration:", supaErr.message);
+          // If already registered in Supabase, warn user
+          if (supaErr.message.toLowerCase().includes("already registered") || supaErr.message.toLowerCase().includes("user already exists")) {
+            return { success: false, error: "An account with this email already exists. Please switch to 'Sign In'." };
           }
         }
-      });
-      if (supaErr) {
-        return { success: false, error: supaErr.message };
+      } catch (networkErr) {
+        console.warn("Supabase Auth unreachable, proceeding with server registration:", networkErr);
       }
     }
 
