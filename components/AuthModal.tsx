@@ -404,7 +404,23 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
               <span>{error}</span>
             </div>
-            {error.toLowerCase().includes("already registered") || error.toLowerCase().includes("already exists") ? (
+            {error.toLowerCase().includes("incorrect password") || error.toLowerCase().includes("credentials") ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("forgot");
+                  setForgotStep(1);
+                  setForgotEmail(email || "");
+                  setError(null);
+                  setSuccessMessage(null);
+                }}
+                className="px-3 py-1.5 bg-[#d4af37] hover:bg-[#b5952f] text-black text-xs font-bold uppercase rounded-lg transition-colors flex items-center gap-1.5 flex-shrink-0 self-start sm:self-auto cursor-pointer shadow-md shadow-amber-500/20"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Reset Password (Code)</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : error.toLowerCase().includes("already registered") || error.toLowerCase().includes("already exists") ? (
               <button
                 type="button"
                 onClick={() => {
@@ -865,6 +881,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   <label className="block text-[11px] font-mono uppercase text-slate-300">
                     PASSWORD
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgot");
+                      setForgotStep(1);
+                      setForgotEmail(email || "");
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-[11px] text-[#60a5fa] hover:text-[#93c5fd] font-mono font-bold transition-colors cursor-pointer flex items-center gap-1"
+                  >
+                    <KeyRound className="w-3 h-3 text-[#d4af37]" />
+                    <span>Forgot Password?</span>
+                  </button>
                 </div>
                 <div className="relative">
                   <input
