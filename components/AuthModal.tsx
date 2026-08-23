@@ -399,9 +399,39 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
         )}
 
         {error && (
-          <div className="p-3 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium flex items-center gap-2 rounded-xl">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
+          <div className="p-3.5 mb-4 bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-medium flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 text-red-400" />
+              <span>{error}</span>
+            </div>
+            {error.toLowerCase().includes("already registered") || error.toLowerCase().includes("already exists") ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("signin");
+                  setError(null);
+                  setIsGooglePickerOpen(false);
+                  if (googleEmail && !email) setEmail(googleEmail);
+                }}
+                className="px-3 py-1.5 bg-[#1c69d4] hover:bg-[#1554aa] text-white text-xs font-bold uppercase rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 self-start sm:self-auto cursor-pointer"
+              >
+                <span>Sign In Instead</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : error.toLowerCase().includes("not registered") ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setTab("signup");
+                  setStep(1);
+                  setError(null);
+                }}
+                className="px-3 py-1.5 bg-[#d4af37] hover:bg-[#b5952f] text-black text-xs font-bold uppercase rounded-lg transition-colors flex items-center gap-1 flex-shrink-0 self-start sm:self-auto cursor-pointer"
+              >
+                <span>Create Account</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : null}
           </div>
         )}
 
@@ -835,19 +865,6 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   <label className="block text-[11px] font-mono uppercase text-slate-300">
                     PASSWORD
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTab("forgot");
-                      setForgotStep(1);
-                      setForgotEmail(email || "");
-                      setError(null);
-                      setSuccessMessage(null);
-                    }}
-                    className="text-[11px] text-[#60a5fa] hover:text-white font-mono transition-colors cursor-pointer"
-                  >
-                    Forgot Password?
-                  </button>
                 </div>
                 <div className="relative">
                   <input
@@ -866,6 +883,23 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                     className="absolute right-3 top-3 text-slate-400 hover:text-white"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <div className="flex justify-end mt-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTab("forgot");
+                      setForgotStep(1);
+                      setForgotEmail(email || "");
+                      setError(null);
+                      setSuccessMessage(null);
+                    }}
+                    className="text-xs text-[#60a5fa] hover:text-[#93c5fd] font-mono font-medium transition-colors cursor-pointer flex items-center gap-1.5 py-1"
+                  >
+                    <KeyRound className="w-3.5 h-3.5 text-[#d4af37]" />
+                    <span>Forgot password? Reset via 6-digit email PIN ›</span>
                   </button>
                 </div>
               </div>

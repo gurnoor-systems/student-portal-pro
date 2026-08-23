@@ -518,7 +518,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (existingAccount) {
       return { 
         success: false, 
-        error: "An account with this email already exists. Please switch to 'Sign In'." 
+        error: "An account with this email is already registered. Please switch to 'Sign In' to access your portal." 
       };
     }
 
