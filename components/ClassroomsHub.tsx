@@ -150,7 +150,7 @@ export default function ClassroomsHub() {
       });
 
       const uploadData = await uploadRes.json();
-      if (uploadData.success) {
+      if (uploadData.success && uploadData.fileUrl) {
         fileKey = uploadData.fileKey;
         fileUrl = uploadData.fileUrl;
         versionId = uploadData.versionId || versionId;
@@ -403,11 +403,28 @@ export default function ClassroomsHub() {
                 <tr key={file.id} className="hover:bg-[var(--surface-soft)] transition-colors">
                   
                   {/* File Name */}
-                  <td className="p-4 font-bold text-sm text-[var(--ink)] flex items-center gap-2.5">
-                    <div className="w-8 h-8 bg-red-500/10 text-red-600 flex items-center justify-center flex-shrink-0">
-                      <FileText className="w-4 h-4" />
+                  <td className="p-4 font-bold text-sm text-[var(--ink)]">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 bg-red-500/10 text-red-600 flex items-center justify-center flex-shrink-0 rounded">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-[var(--ink)]">{file.fileName}</div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {file.fileUrl ? (
+                            <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1 font-semibold">
+                              <Cloud className="w-3 h-3" />
+                              <span>Supabase Cloud</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-blue-400 font-mono flex items-center gap-1 font-semibold">
+                              <HardDrive className="w-3 h-3" />
+                              <span>Local Storage</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <span>{file.fileName}</span>
                   </td>
 
                   {/* Course Code */}
