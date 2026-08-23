@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { UserProfile, TaskItem, ExamItem, CourseItem } from "@/lib/types";
+import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 
 export * from "@/lib/types";
