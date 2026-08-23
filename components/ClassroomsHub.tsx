@@ -366,7 +366,7 @@ export default function ClassroomsHub() {
               className="bmw-btn-primary !h-10 !text-xs !py-2"
             >
               <Upload className="w-4 h-4 mr-1" />
-              <span>UPLOAD MATERIAL</span>
+              <span>UPLOAD</span>
             </button>
           </div>
         </div>
@@ -926,7 +926,7 @@ export default function ClassroomsHub() {
                       <span>UPLOADING ({uploadProgress}%)...</span>
                     </>
                   ) : (
-                    <span>UPLOAD TO REPOSITORY</span>
+                    <span>UPLOAD</span>
                   )}
                 </button>
               </div>
