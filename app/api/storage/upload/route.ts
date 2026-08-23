@@ -3,11 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  // Use service_role key first (bypasses RLS), or fallback to anon key
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const bucketName = "course-materials";
 
-  if (!supabaseUrl || !supabaseKey) return null;
+  if (!supabaseUrl || !supabaseKey) {
+    console.warn("[Storage API] Supabase URL or Key is missing from environment variables.");
+    return null;
+  }
 
   return {
     client: createClient(supabaseUrl, supabaseKey, {
@@ -21,13 +23,9 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
-    const userId = formData.get("userId") as string | null;
+    const userId = (formData.get("userId") as string | null) || "student_user";
     const fileName = (formData.get("fileName") as string | null) || (file ? file.name : "Document.pdf");
     const courseCode = (formData.get("courseCode") as string | null) || "CS 341";
-
-    if (!userId) {
-      return NextResponse.json({ error: "Missing userId" }, { status: 400 });
-    }
 
     const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
     const fileKey = `${userId}/${Date.now()}_${sanitizedName}`;
@@ -35,10 +33,23 @@ export async function POST(req: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // If file is attached and Supabase credentials exist
+    // If a real file is provided and Supabase is configured
     if (file && supabase) {
       const fileBuffer = Buffer.from(await file.arrayBuffer());
 
+      // Auto-Heal: Ensure bucket exists (creates it if missing)
+      try {
+        const { data: buckets } = await supabase.client.storage.listBuckets();
+        const hasBucket = buckets?.some((b: any) => b.name === supabase.bucketName);
+        if (!hasBucket) {
+          console.log(`[Storage API] Bucket "${supabase.bucketName}" not found. Creating bucket...`);
+          await supabase.client.storage.createBucket(supabase.bucketName, { public: true });
+        }
+      } catch (bucketCheckErr) {
+        console.warn("[Storage API] Bucket auto-check notice:", bucketCheckErr);
+      }
+
+      // Upload file directly into Supabase Storage
       const { data, error } = await supabase.client.storage
         .from(supabase.bucketName)
         .upload(fileKey, fileBuffer, {
@@ -47,7 +58,7 @@ export async function POST(req: NextRequest) {
         });
 
       if (error) {
-        console.error("Supabase storage upload error details:", error);
+        console.error("[Storage API] Upload to Supabase failed:", error);
         return NextResponse.json({
           success: false,
           error: error.message || "Failed to upload to Supabase bucket",
@@ -76,9 +87,9 @@ export async function POST(req: NextRequest) {
       storageProvider: "simulated"
     });
   } catch (error: any) {
-    console.error("Storage upload handler error:", error);
+    console.error("[Storage API] Global exception:", error);
     return NextResponse.json(
-      { error: "Upload handler exception", details: error?.message },
+      { error: "Upload exception", details: error?.message },
       { status: 500 }
     );
   }

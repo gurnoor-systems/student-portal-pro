@@ -24,6 +24,49 @@ export interface StorageViewResponse {
 }
 
 /**
+ * Creates an upload destination for Supabase Storage.
+ */
+export async function createUploadDestination(
+  userId: string,
+  fileName: string,
+  contentType: string = "application/pdf"
+): Promise<StorageUploadResponse> {
+  const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const versionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const fileKey = `${userId}/${Date.now()}_${sanitizedName}`;
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    return {
+      uploadUrl: `/api/storage/upload`,
+      fileKey,
+      versionId,
+      storageProvider: "simulated"
+    };
+  }
+
+  try {
+    const { data: pubData } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(fileKey);
+
+    return {
+      uploadUrl: `/api/storage/upload`,
+      fileKey,
+      publicViewUrl: pubData?.publicUrl || "",
+      versionId,
+      storageProvider: "supabase"
+    };
+  } catch {
+    return {
+      fileKey,
+      versionId,
+      storageProvider: "simulated"
+    };
+  }
+}
+
+/**
  * Creates a signed view URL for Supabase Storage or Google Drive fileId.
  */
 export async function createDocumentViewUrl(
@@ -49,7 +92,6 @@ export async function createDocumentViewUrl(
   }
 
   try {
-    // 1. First get public URL
     const { data: pubData } = supabase.storage
       .from(STORAGE_BUCKET)
       .getPublicUrl(fileKey);
@@ -62,7 +104,6 @@ export async function createDocumentViewUrl(
       };
     }
 
-    // 2. Or create signed URL
     const { data, error } = await supabase.storage
       .from(STORAGE_BUCKET)
       .createSignedUrl(fileKey, 3600);

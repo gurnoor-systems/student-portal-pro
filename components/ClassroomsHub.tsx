@@ -135,39 +135,40 @@ export default function ClassroomsHub() {
     }
 
     try {
-      if (user?.id) {
-        const formData = new FormData();
-        formData.append("userId", user.id);
-        formData.append("fileName", finalFileName);
-        formData.append("courseCode", uploadCourseCode);
-        if (attachedFile) {
-          formData.append("file", attachedFile);
-        }
+      const activeUserId = user?.id || "student_user";
+      const formData = new FormData();
+      formData.append("userId", activeUserId);
+      formData.append("fileName", finalFileName);
+      formData.append("courseCode", uploadCourseCode);
+      if (attachedFile) {
+        formData.append("file", attachedFile);
+      }
 
-        const uploadRes = await fetch("/api/storage/upload", {
-          method: "POST",
-          body: formData
-        });
+      const uploadRes = await fetch("/api/storage/upload", {
+        method: "POST",
+        body: formData
+      });
 
-        const uploadData = await uploadRes.json();
-        if (uploadData.success) {
-          fileKey = uploadData.fileKey;
-          fileUrl = uploadData.fileUrl;
-          versionId = uploadData.versionId || versionId;
-        }
+      const uploadData = await uploadRes.json();
+      if (uploadData.success) {
+        fileKey = uploadData.fileKey;
+        fileUrl = uploadData.fileUrl;
+        versionId = uploadData.versionId || versionId;
+      } else {
+        console.warn("Storage upload response notice:", uploadData.error);
+      }
 
-        // Cache in local IndexedDB for immediate 0ms next view
-        if (attachedFile) {
-          await PDFCacheManager.storeBlob(
-            newDocId,
-            versionId,
-            finalFileName,
-            attachedFile
-          );
-        }
+      // Cache in local IndexedDB for immediate 0ms next view
+      if (attachedFile) {
+        await PDFCacheManager.storeBlob(
+          newDocId,
+          versionId,
+          finalFileName,
+          attachedFile
+        );
       }
     } catch (error) {
-      console.warn("Upload error, saving local metadata:", error);
+      console.warn("Upload network error, saved local copy:", error);
     }
 
     const newFile: MaterialItem = {
