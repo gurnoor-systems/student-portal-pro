@@ -643,9 +643,9 @@ export async function POST(req: NextRequest) {
       const trimmedEmail = email.trim().toLowerCase();
       
       // Check if account exists in memory, disk, or Supabase
-      let account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
+      let account: StoredAccount | undefined = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
       if (!account) {
-        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+        account = await getAccountFromSupabase(trimmedEmail);
       }
       if (!account) {
         return NextResponse.json({ 
@@ -702,7 +702,7 @@ export async function POST(req: NextRequest) {
         account = disk.accounts[trimmedEmail];
       }
       if (!account) {
-        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+        account = await getAccountFromSupabase(trimmedEmail);
       }
 
       if (account) {
@@ -732,7 +732,7 @@ export async function POST(req: NextRequest) {
         account = disk.accounts[trimmedEmail];
       }
       if (!account) {
-        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+        account = await getAccountFromSupabase(trimmedEmail);
       }
 
       if (account) {
