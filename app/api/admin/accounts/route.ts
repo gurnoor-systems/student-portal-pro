@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized. Invalid Master Admin Passkey." }, { status: 401 });
     }
 
-    // Merge disk accounts and in-memory accounts so no registered user or admin is ever missed
+    // Read from disk database and memory cache
     const diskAccounts = getDiskAccounts();
     const accounts: Record<string, any> = { ...diskAccounts };
 
@@ -100,46 +100,41 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Merge any client-provided accounts into server database
-    if (Array.isArray(body.clientAccounts)) {
-      body.clientAccounts.forEach((acc: any) => {
-        if (acc && acc.email) {
-          const emailKey = acc.email.trim().toLowerCase();
-          accounts[emailKey] = {
-            ...(accounts[emailKey] || {}),
-            ...acc
-          };
+    // Sync from Supabase PostgreSQL profiles table
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data: supaProfiles } = await supabase.from("profiles").select("*");
+        if (Array.isArray(supaProfiles)) {
+          supaProfiles.forEach((p: any) => {
+            if (p.email) {
+              const emailKey = p.email.trim().toLowerCase();
+              if (!accounts[emailKey]) {
+                accounts[emailKey] = {
+                  id: p.id,
+                  email: emailKey,
+                  passwordHash: p.password_hash || "OAuth Verified",
+                  fullName: p.full_name || "Student",
+                  university: p.university || "University of Waterloo",
+                  degree: p.degree || "Bachelor of Technology (B.Tech)",
+                  major: p.major || "Computer Science",
+                  semester: p.semester || "Fall 2026",
+                  googleCalendarSynced: p.google_calendar_synced ?? true,
+                  createdAt: p.created_at || new Date().toISOString(),
+                  lastLoginAt: p.last_login_at || new Date().toISOString(),
+                  activeSessions: Array.isArray(p.active_sessions) ? p.active_sessions : [],
+                  courses: Array.isArray(p.courses_json) ? p.courses_json : [],
+                  tasks: Array.isArray(p.tasks_json) ? p.tasks_json : [],
+                  exams: Array.isArray(p.exams_json) ? p.exams_json : [],
+                  documents: Array.isArray(p.documents_json) ? p.documents_json : []
+                };
+              }
+            }
+          });
         }
-      });
-      writeDiskAccounts(accounts);
-    }
-
-    // Always ensure the logged-in Administrator email is present in the registry
-    const cleanAdminEmail = adminEmail.trim().toLowerCase();
-    if (!accounts[cleanAdminEmail]) {
-      accounts[cleanAdminEmail] = {
-        id: `usr_admin_${Date.now()}`,
-        email: cleanAdminEmail,
-        passwordHash: adminSecretKey ? `Master Passkey Protected (${adminSecretKey.substring(0, 4)}••••)` : "Master Admin Clearance",
-        fullName: "Gurnoor Singh (Administrator)",
-        university: "University of Waterloo",
-        degree: "B.Tech in Computer Science",
-        major: "Computer Science",
-        semester: "Fall 2026",
-        googleCalendarSynced: true,
-        createdAt: new Date().toISOString(),
-        lastLoginAt: new Date().toISOString(),
-        activeSessions: [{
-          deviceId: `dev_admin_${Date.now()}`,
-          deviceName: "Master Admin Console • Active",
-          deviceType: "desktop",
-          browser: "Admin Dashboard",
-          os: "Primary Workstation",
-          loginTimestamp: new Date().toISOString(),
-          lastActiveTimestamp: new Date().toISOString()
-        }]
-      };
-      writeDiskAccounts(accounts);
+      } catch (err) {
+        console.warn("Admin Supabase profiles sync notice:", err);
+      }
     }
 
     // 1. FETCH ALL ACCOUNTS & CONNECTED DEVICES

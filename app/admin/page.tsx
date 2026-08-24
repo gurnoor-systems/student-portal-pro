@@ -105,22 +105,13 @@ export default function AdminConsolePage() {
     if (!silent) setIsRefreshing(true);
     setAuthError(null);
     try {
-      let clientAccounts: any[] = [];
-      try {
-        const localRaw = localStorage.getItem("student_portal_registered_accounts");
-        if (localRaw) {
-          clientAccounts = JSON.parse(localRaw);
-        }
-      } catch {}
-
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           adminEmail: email,
           passkey: key,
-          action: "list-all",
-          clientAccounts
+          action: "list-all"
         })
       });
       const data = await res.json();
@@ -226,6 +217,28 @@ export default function AdminConsolePage() {
     if (!userToDelete) return;
     setIsDeleting(true);
     try {
+      const targetEmail = userToDelete.email.trim().toLowerCase();
+      const targetId = userToDelete.id;
+
+      // 1. Purge from browser storage
+      try {
+        const localRaw = localStorage.getItem("student_portal_registered_accounts");
+        if (localRaw) {
+          const parsed = JSON.parse(localRaw);
+          const filtered = parsed.filter((a: any) => a.email?.toLowerCase() !== targetEmail && a.id !== targetId);
+          localStorage.setItem("student_portal_registered_accounts", JSON.stringify(filtered));
+        }
+        localStorage.removeItem(`student_portal_user_${targetId}_data`);
+        const activeRaw = localStorage.getItem("student_portal_active_user");
+        if (activeRaw) {
+          const parsedActive = JSON.parse(activeRaw);
+          if (parsedActive?.email?.toLowerCase() === targetEmail || parsedActive?.id === targetId) {
+            localStorage.removeItem("student_portal_active_user");
+          }
+        }
+      } catch {}
+
+      // 2. Purge from Server & Supabase Database
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -233,7 +246,7 @@ export default function AdminConsolePage() {
           adminEmail,
           passkey,
           action: "delete-account",
-          targetEmail: userToDelete.email
+          targetEmail
         })
       });
       const data = await res.json();
@@ -254,6 +267,18 @@ export default function AdminConsolePage() {
     if (!confirm("⚠️ DANGER: Are you sure you want to permanently purge ALL student accounts and reset the database to 0? This cannot be undone.")) return;
     setIsDeleting(true);
     try {
+      // 1. Purge all browser localStorage
+      try {
+        localStorage.removeItem("student_portal_registered_accounts");
+        localStorage.removeItem("student_portal_active_user");
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith("student_portal_user_")) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch {}
+
+      // 2. Purge Server & Supabase Database
       const res = await fetch("/api/admin/accounts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
