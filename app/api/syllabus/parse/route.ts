@@ -45,8 +45,13 @@ function heuristicSyllabusParser(text: string): ParsedSyllabusResult {
 
     let parsedDate = new Date(Date.now() + (idx + 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     if (dateMatch) {
-      const parsed = Date.parse(`${dateMatch[0]} ${currentYear}`);
+      let parsed = Date.parse(`${dateMatch[0]} ${currentYear}`);
       if (!isNaN(parsed)) {
+        // If date is more than 90 days in the past, assign to the upcoming academic year
+        if (parsed < Date.now() - 90 * 86400000) {
+          const nextYearParsed = Date.parse(`${dateMatch[0]} ${currentYear + 1}`);
+          if (!isNaN(nextYearParsed)) parsed = nextYearParsed;
+        }
         parsedDate = new Date(parsed).toISOString().split("T")[0];
       }
     }

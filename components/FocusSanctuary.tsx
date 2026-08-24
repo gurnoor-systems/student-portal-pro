@@ -78,6 +78,15 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
   const [loggedMinutes, setLoggedMinutes] = useState<number>(0);
 
+  // Clean audio and timer state whenever modal closes
+  useEffect(() => {
+    if (!isOpen) {
+      soundscapeEngine.stop();
+      setIsRunning(false);
+      setAudioType("none");
+    }
+  }, [isOpen]);
+
   // Set default attached task when userData loads
   useEffect(() => {
     if (userData.tasks.length > 0 && !attachedTaskId) {
