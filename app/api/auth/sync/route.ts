@@ -25,9 +25,9 @@ function getSupabaseClient() {
   }
 }
 
-async function getAccountFromSupabase(email: string): Promise<StoredAccount | null> {
+async function getAccountFromSupabase(email: string): Promise<StoredAccount | undefined> {
   const supabase = getSupabaseClient();
-  if (!supabase) return null;
+  if (!supabase) return undefined;
   try {
     const { data, error } = await supabase
       .from("profiles")
@@ -59,7 +59,7 @@ async function getAccountFromSupabase(email: string): Promise<StoredAccount | nu
   } catch (err) {
     console.warn("Supabase profile read notice:", err);
   }
-  return null;
+  return undefined;
 }
 
 async function saveAccountToSupabase(acc: StoredAccount): Promise<void> {
