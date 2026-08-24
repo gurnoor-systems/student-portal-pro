@@ -219,7 +219,7 @@ export default function ClassroomsHub() {
       fetch("/api/storage/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileKey })
+        body: JSON.stringify({ fileKey, userId: user?.id || "guest" })
       }).catch(() => {});
     }
 

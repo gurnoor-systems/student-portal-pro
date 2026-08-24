@@ -33,7 +33,8 @@ export async function createUploadDestination(
 ): Promise<StorageUploadResponse> {
   const sanitizedName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
   const versionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-  const fileKey = `${Date.now()}_${sanitizedName}`;
+  const cleanUserId = (userId || "guest").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const fileKey = `${cleanUserId}/${Date.now()}_${sanitizedName}`;
 
   const supabase = getSupabase();
   if (!supabase) {
@@ -68,23 +69,24 @@ export async function createUploadDestination(
 
 /**
  * Creates a signed view URL for Supabase Storage or Google Drive fileId.
- * Generates an authenticated signed URL so it works seamlessly for BOTH private & public buckets.
  */
 export async function createDocumentViewUrl(
   fileKey: string,
-  versionId: string = "v1",
-  googleDriveFileId?: string
+  storageProvider: "supabase" | "gdrive" | "simulated" = "supabase"
 ): Promise<StorageViewResponse> {
-  if (googleDriveFileId) {
+  const versionId = `v_${Date.now()}`;
+
+  if (storageProvider === "gdrive") {
+    const driveViewUrl = `/api/storage/drive-stream?fileId=${encodeURIComponent(fileKey)}`;
     return {
-      viewUrl: `/api/storage/drive-stream?fileId=${encodeURIComponent(googleDriveFileId)}`,
+      viewUrl: driveViewUrl,
       versionId,
       storageProvider: "gdrive"
     };
   }
 
   const supabase = getSupabase();
-  if (!supabase) {
+  if (!supabase || storageProvider === "simulated") {
     return {
       viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
       versionId,
@@ -93,27 +95,13 @@ export async function createDocumentViewUrl(
   }
 
   try {
-    // 1. Generate an authenticated 2-hour signed URL (Bypasses private bucket / RLS restrictions)
-    const { data: signedData, error: signError } = await supabase.storage
+    const { data: signedData, error } = await supabase.storage
       .from(STORAGE_BUCKET)
       .createSignedUrl(fileKey, 7200);
 
-    if (signedData?.signedUrl) {
+    if (signedData?.signedUrl && !error) {
       return {
         viewUrl: signedData.signedUrl,
-        versionId,
-        storageProvider: "supabase"
-      };
-    }
-
-    // 2. Fallback to public URL if signed URL unavailable
-    const { data: pubData } = supabase.storage
-      .from(STORAGE_BUCKET)
-      .getPublicUrl(fileKey);
-
-    if (pubData?.publicUrl) {
-      return {
-        viewUrl: pubData.publicUrl,
         versionId,
         storageProvider: "supabase"
       };
@@ -134,9 +122,19 @@ export async function createDocumentViewUrl(
 }
 
 /**
- * Deletes a file from Supabase Storage.
+ * Deletes a file from Supabase Storage with strict user ownership validation.
  */
-export async function deleteDocumentFromStorage(fileKey: string): Promise<boolean> {
+export async function deleteDocumentFromStorage(fileKey: string, userId?: string): Promise<boolean> {
+  // IDOR Defense: If file is user-scoped and userId is provided, verify matching ownership prefix
+  if (fileKey.includes("/") && userId) {
+    const cleanUserId = userId.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const fileOwnerPrefix = fileKey.split("/")[0];
+    if (fileOwnerPrefix && fileOwnerPrefix !== cleanUserId && fileOwnerPrefix !== "guest") {
+      console.warn(`IDOR Prevention: User ${userId} attempted to delete file belonging to ${fileOwnerPrefix}`);
+      return false;
+    }
+  }
+
   const supabase = getSupabase();
   if (!supabase) return true;
 

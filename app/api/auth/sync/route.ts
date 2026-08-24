@@ -7,6 +7,7 @@ import { ActiveDeviceSession } from "@/lib/types";
 import { sendPasswordResetEmailViaResend } from "@/lib/email-service";
 import { hashPassword, verifyPassword } from "@/lib/password-security";
 import { verifyGoogleIdToken } from "@/lib/google-auth-verifier";
+import { checkRateLimit, clearRateLimit } from "@/lib/rate-limiter";
 
 // Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Cloud Sync)
 // Supports Concurrent Multi-Device Sessions:
@@ -115,6 +116,7 @@ interface StoredAccount {
 interface ResetPinRecord {
   code: string;
   expiresAt: number;
+  failedAttempts?: number;
 }
 
 interface PersistentDB {
@@ -338,6 +340,16 @@ export async function POST(req: NextRequest) {
         }, { status: 200 });
       }
 
+      // Rate Limit: Max 5 failed password attempts per IP/email in 5 minutes
+      const loginLimitKey = `login_fail:${trimmedEmail}:${ip}`;
+      const loginLimit = checkRateLimit(loginLimitKey, 5, 5 * 60 * 1000);
+      if (!loginLimit.allowed) {
+        return NextResponse.json({
+          success: false,
+          error: `Too many failed login attempts. For security, please wait ${loginLimit.retryAfterSeconds} seconds before trying again.`
+        }, { status: 429 });
+      }
+
       const { isValid, needsUpgrade } = verifyPassword(password, account.passwordHash);
       if (!isValid) {
         return NextResponse.json({ 
@@ -345,6 +357,9 @@ export async function POST(req: NextRequest) {
           error: "Incorrect password for this student account. Please check your credentials." 
         }, { status: 200 });
       }
+
+      // Clear login fail rate limit on successful authentication
+      clearRateLimit(loginLimitKey);
 
       // Automatically upgrade legacy plaintext password to secure PBKDF2 salt hash
       if (needsUpgrade) {
@@ -673,6 +688,15 @@ export async function POST(req: NextRequest) {
       }
 
       const trimmedEmail = email.trim().toLowerCase();
+
+      // Rate Limit: Max 3 reset email dispatches per 15 minutes per email/IP to prevent quota exhaustion
+      const resetLimit = checkRateLimit(`reset_req:${trimmedEmail}:${ip}`, 3, 15 * 60 * 1000);
+      if (!resetLimit.allowed) {
+        return NextResponse.json({ 
+          success: false, 
+          error: `Too many password reset requests. For security, please wait ${Math.ceil(resetLimit.retryAfterSeconds / 60)} minute(s) before requesting another code.` 
+        }, { status: 429 });
+      }
       
       // Check if account exists in memory, disk, or Supabase
       let account: StoredAccount | undefined = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
@@ -690,7 +714,8 @@ export async function POST(req: NextRequest) {
       
       const pinRecord: ResetPinRecord = {
         code: pin,
-        expiresAt: Date.now() + 30 * 60 * 1000 // 30 minutes
+        expiresAt: Date.now() + 30 * 60 * 1000, // 30 minutes
+        failedAttempts: 0
       };
 
       pinsStore.set(trimmedEmail, pinRecord);
@@ -709,7 +734,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 8. RESET PASSWORD WITH PIN
+    // 8. RESET PASSWORD WITH PIN (Includes 5-Attempt Lockout)
     if (action === "reset-password") {
       const { email, code, newPassword } = body;
       if (!email || !code || !newPassword) {
@@ -724,8 +749,27 @@ export async function POST(req: NextRequest) {
         pinRecord = disk.pins[trimmedEmail];
       }
 
-      if (!pinRecord || pinRecord.code !== code.trim() || Date.now() > pinRecord.expiresAt) {
-        return NextResponse.json({ error: "Invalid or expired recovery PIN code." }, { status: 400 });
+      if (!pinRecord || Date.now() > pinRecord.expiresAt) {
+        return NextResponse.json({ error: "Invalid or expired recovery PIN code. Please request a new code." }, { status: 400 });
+      }
+
+      // Check PIN validity with strict 5-attempt lockout defense
+      if (pinRecord.code !== code.trim()) {
+        pinRecord.failedAttempts = (pinRecord.failedAttempts || 0) + 1;
+        pinsStore.set(trimmedEmail, pinRecord);
+        syncToDisk();
+
+        if (pinRecord.failedAttempts >= 5) {
+          pinsStore.delete(trimmedEmail);
+          syncToDisk();
+          return NextResponse.json({ 
+            error: "Security Alert: Too many incorrect PIN attempts. This recovery code has been invalidated. Please request a new code." 
+          }, { status: 403 });
+        }
+
+        return NextResponse.json({ 
+          error: `Incorrect recovery code. ${5 - pinRecord.failedAttempts} attempt(s) remaining before invalidation.` 
+        }, { status: 400 });
       }
 
       let account = accountsStore.get(trimmedEmail);
