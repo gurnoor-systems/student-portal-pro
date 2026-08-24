@@ -121,6 +121,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   // 1-Click Google Sign-In State (on Sign In tab)
   const [isGoogleSignInOpen, setIsGoogleSignInOpen] = useState(false);
   const [googleSignInEmail, setGoogleSignInEmail] = useState("");
+  const [savedDeviceAccounts, setSavedDeviceAccounts] = useState<any[]>(() => {
+    try {
+      const raw = localStorage.getItem("student_portal_registered_accounts");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Google Verified Registration Dialog state (on Create Account tab)
   const [isGooglePickerOpen, setIsGooglePickerOpen] = useState(false);
@@ -560,9 +568,61 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Confirm your student Google email. If your account is registered, you will be authenticated directly into your dashboard.
+                Select your recognized student Google account or confirm your email to sign in directly.
               </p>
             </div>
+
+            {/* Quick 1-Tap Account Selector Chips */}
+            {savedDeviceAccounts.length > 0 && (
+              <div className="space-y-2">
+                <label className="block text-[10px] font-mono uppercase text-slate-400">
+                  RECOGNIZED GOOGLE ACCOUNTS
+                </label>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                  {savedDeviceAccounts.map((acc: any) => (
+                    <button
+                      key={acc.email}
+                      type="button"
+                      disabled={loading}
+                      onClick={async () => {
+                        setGoogleSignInEmail(acc.email);
+                        setError(null);
+                        setLoading(true);
+                        const res = await signInWithGoogleDirect(acc.email);
+                        setLoading(false);
+                        if (res.success) {
+                          setIsGoogleSignInOpen(false);
+                          onClose();
+                        } else {
+                          setError(res.error || `Could not sign in with ${acc.email}`);
+                        }
+                      }}
+                      className="w-full p-2.5 bg-[#090d12] hover:bg-[#15202e] border border-white/10 hover:border-[#1c69d4] rounded-xl flex items-center justify-between transition-all cursor-pointer text-left group"
+                    >
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-600 to-amber-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                          {acc.fullName?.[0]?.toUpperCase() || "G"}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs font-bold text-white flex items-center gap-1.5 truncate">
+                            <span className="truncate">{acc.fullName || "Student"}</span>
+                            <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-400 text-[9px] font-mono rounded flex-shrink-0">Registered</span>
+                          </div>
+                          <div className="text-[11px] text-slate-400 font-mono truncate">{acc.email}</div>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-white flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center my-3">
+                  <div className="flex-1 border-t border-white/10" />
+                  <span className="px-2 text-[9px] font-mono text-slate-500 uppercase">OR TYPE ANOTHER EMAIL</span>
+                  <div className="flex-1 border-t border-white/10" />
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">

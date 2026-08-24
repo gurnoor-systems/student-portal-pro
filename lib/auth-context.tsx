@@ -1338,7 +1338,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   }, [user]);
 
-  // Background Auto-Sync across all concurrent devices (every 25s & on window focus)
+  // Background Auto-Sync across all concurrent devices (every 8s, on load, & on window focus)
   useEffect(() => {
     if (!user?.email) return;
 
@@ -1346,7 +1346,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshMultiDeviceSync();
     };
 
-    const interval = setInterval(syncHandler, 25000);
+    // Immediate sync on active session mount
+    syncHandler();
+
+    const interval = setInterval(syncHandler, 8000);
     window.addEventListener("focus", syncHandler);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") syncHandler();

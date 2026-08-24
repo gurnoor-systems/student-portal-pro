@@ -1,14 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import os from "os";
+import { createClient } from "@supabase/supabase-js";
 import { ActiveDeviceSession } from "@/lib/types";
 import { sendPasswordResetEmailViaResend } from "@/lib/email-service";
 
-// Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Sync)
+// Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Cloud Sync)
 // Supports Concurrent Multi-Device Sessions:
 // - Students can be logged in simultaneously on Phone, Tablet, Laptop, and Desktop.
 // - Logging in on Device B keeps Device A active with real-time state synchronization.
 // - View active devices and remotely revoke sessions if needed.
+
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  try {
+    return createClient(url, key, {
+      auth: { persistSession: false }
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function getAccountFromSupabase(email: string): Promise<StoredAccount | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return null;
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", email.trim().toLowerCase())
+      .maybeSingle();
+
+    if (data && !error) {
+      return {
+        id: data.id,
+        email: (data.email || email).trim().toLowerCase(),
+        passwordHash: data.password_hash || "",
+        fullName: data.full_name || "Student",
+        university: data.university || "University of Waterloo",
+        degree: data.degree || "Bachelor of Technology (B.Tech)",
+        major: data.major || "Computer Science",
+        semester: data.semester || "Fall 2026",
+        googleCalendarSynced: data.google_calendar_synced ?? true,
+        densityPreference: data.density_preference || "comfortable",
+        createdAt: data.created_at || new Date().toISOString(),
+        lastLoginAt: data.last_login_at || new Date().toISOString(),
+        activeSessions: Array.isArray(data.active_sessions) ? data.active_sessions : [],
+        courses: Array.isArray(data.courses_json) ? data.courses_json : [],
+        tasks: Array.isArray(data.tasks_json) ? data.tasks_json : [],
+        exams: Array.isArray(data.exams_json) ? data.exams_json : [],
+        documents: Array.isArray(data.documents_json) ? data.documents_json : []
+      };
+    }
+  } catch (err) {
+    console.warn("Supabase profile read notice:", err);
+  }
+  return null;
+}
+
+async function saveAccountToSupabase(acc: StoredAccount): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await supabase.from("profiles").upsert({
+      id: acc.id,
+      email: acc.email.toLowerCase(),
+      full_name: acc.fullName,
+      university: acc.university,
+      major: acc.major,
+      degree: acc.degree,
+      semester: acc.semester,
+      password_hash: acc.passwordHash,
+      google_calendar_synced: acc.googleCalendarSynced,
+      density_preference: acc.densityPreference,
+      last_login_at: acc.lastLoginAt,
+      active_sessions: acc.activeSessions,
+      courses_json: acc.courses || [],
+      tasks_json: acc.tasks || [],
+      exams_json: acc.exams || [],
+      documents_json: acc.documents || [],
+      updated_at: new Date().toISOString()
+    }, { onConflict: "email" });
+  } catch (err) {
+    console.warn("Supabase profile save notice:", err);
+  }
+}
 
 interface StoredAccount {
   id: string;
@@ -39,8 +119,6 @@ interface PersistentDB {
   accounts: Record<string, StoredAccount>;
   pins: Record<string, ResetPinRecord>;
 }
-
-import os from "os";
 
 function getDBFilePath(): string {
   if (process.env.VERCEL) {
@@ -216,6 +294,7 @@ export async function POST(req: NextRequest) {
 
       accountsStore.set(email, record);
       syncToDisk();
+      await saveAccountToSupabase(record);
 
       return NextResponse.json({ success: true, account: record, deviceSession });
     }
@@ -235,6 +314,14 @@ export async function POST(req: NextRequest) {
         account = disk.accounts[trimmedEmail];
         if (account) {
           accountsStore.set(trimmedEmail, account);
+        }
+      }
+
+      if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail);
+        if (account) {
+          accountsStore.set(trimmedEmail, account);
+          syncToDisk();
         }
       }
 
@@ -278,6 +365,7 @@ export async function POST(req: NextRequest) {
       account.lastLoginAt = new Date().toISOString();
       accountsStore.set(trimmedEmail, account);
       syncToDisk();
+      await saveAccountToSupabase(account);
 
       return NextResponse.json({ 
         success: true, 
@@ -328,6 +416,14 @@ export async function POST(req: NextRequest) {
       }
 
       if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail);
+        if (account) {
+          accountsStore.set(trimmedEmail, account);
+          syncToDisk();
+        }
+      }
+
+      if (!account) {
         return NextResponse.json({ 
           success: false, 
           notFound: true,
@@ -359,6 +455,7 @@ export async function POST(req: NextRequest) {
       account.lastLoginAt = new Date().toISOString();
       accountsStore.set(trimmedEmail, account);
       syncToDisk();
+      await saveAccountToSupabase(account);
 
       return NextResponse.json({ 
         success: true, 
@@ -403,6 +500,21 @@ export async function POST(req: NextRequest) {
       if (!account) {
         const disk = readDiskDB();
         account = disk.accounts[trimmedEmail];
+      }
+
+      // Query Supabase for newest updates made from another device
+      const supaAccount = await getAccountFromSupabase(trimmedEmail);
+      if (supaAccount) {
+        account = {
+          ...(account || supaAccount),
+          ...supaAccount,
+          courses: supaAccount.courses || account?.courses || [],
+          tasks: supaAccount.tasks || account?.tasks || [],
+          exams: supaAccount.exams || account?.exams || [],
+          documents: supaAccount.documents || account?.documents || []
+        };
+        accountsStore.set(trimmedEmail, account);
+        syncToDisk();
       }
 
       if (!account) {
@@ -460,6 +572,7 @@ export async function POST(req: NextRequest) {
         account.activeSessions = account.activeSessions.filter(s => s.deviceId !== deviceIdToRevoke);
         accountsStore.set(trimmedEmail, account);
         syncToDisk();
+        await saveAccountToSupabase(account);
       }
 
       return NextResponse.json({ success: true, activeSessions: account?.activeSessions || [] });
@@ -479,6 +592,7 @@ export async function POST(req: NextRequest) {
         account.activeSessions = account.activeSessions.filter(s => s.deviceId === currentDeviceId);
         accountsStore.set(trimmedEmail, account);
         syncToDisk();
+        await saveAccountToSupabase(account);
       }
 
       return NextResponse.json({ success: true, activeSessions: account?.activeSessions || [] });
@@ -500,6 +614,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail);
+      }
+
+      if (!account) {
         return NextResponse.json({ error: "Account not found" }, { status: 404 });
       }
 
@@ -510,6 +628,7 @@ export async function POST(req: NextRequest) {
       account.passwordHash = newPassword;
       accountsStore.set(trimmedEmail, account);
       syncToDisk();
+      await saveAccountToSupabase(account);
 
       return NextResponse.json({ success: true });
     }
@@ -523,8 +642,11 @@ export async function POST(req: NextRequest) {
 
       const trimmedEmail = email.trim().toLowerCase();
       
-      // Check if account exists
-      const account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
+      // Check if account exists in memory, disk, or Supabase
+      let account = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
+      if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+      }
       if (!account) {
         return NextResponse.json({ 
           success: false, 
@@ -579,10 +701,14 @@ export async function POST(req: NextRequest) {
         const disk = readDiskDB();
         account = disk.accounts[trimmedEmail];
       }
+      if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+      }
 
       if (account) {
         account.passwordHash = newPassword;
         accountsStore.set(trimmedEmail, account);
+        await saveAccountToSupabase(account);
       }
 
       pinsStore.delete(trimmedEmail);
@@ -605,6 +731,9 @@ export async function POST(req: NextRequest) {
         const disk = readDiskDB();
         account = disk.accounts[trimmedEmail];
       }
+      if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail) || undefined;
+      }
 
       if (account) {
         account.courses = userData.courses || account.courses;
@@ -613,6 +742,7 @@ export async function POST(req: NextRequest) {
         account.documents = userData.documents || account.documents;
         accountsStore.set(trimmedEmail, account);
         syncToDisk();
+        await saveAccountToSupabase(account);
       }
 
       return NextResponse.json({ success: true });
