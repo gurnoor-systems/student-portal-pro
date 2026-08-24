@@ -78,6 +78,9 @@ interface AuthContextType {
     syncGoogle?: boolean,
     password?: string
   ) => Promise<{ success: boolean; error?: string }>;
+  signInWithGoogleDirect: (
+    googleEmail: string
+  ) => Promise<{ success: boolean; error?: string; notFound?: boolean; email?: string }>;
   signOut: () => Promise<void>;
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   toggleGoogleCalendarSync: (enabled: boolean) => Promise<boolean>;
@@ -713,6 +716,142 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { success: true };
   };
 
+  // 1-Click Google Sign In for Pre-Registered Student Accounts
+  const signInWithGoogleDirect = async (
+    googleEmail: string
+  ): Promise<{ success: boolean; error?: string; notFound?: boolean; email?: string }> => {
+    await simulateNetworkLatency(350);
+
+    if (!googleEmail || !googleEmail.trim()) {
+      return { success: false, error: "Please enter your student Google email address." };
+    }
+
+    const trimmedEmail = googleEmail.trim().toLowerCase();
+    const deviceInfo = getDeviceDetails();
+
+    // 1. Check Centralized Server Auth Sync
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "google-login",
+          email: trimmedEmail,
+          deviceInfo
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.account) {
+        const serverAcc = data.account;
+        const profile: UserProfile = {
+          id: serverAcc.id,
+          email: serverAcc.email,
+          fullName: serverAcc.fullName,
+          emailVerified: true,
+          googleVerified: true,
+          university: serverAcc.university,
+          degree: serverAcc.degree || "Bachelor of Technology (B.Tech)",
+          major: serverAcc.major,
+          semester: serverAcc.semester || "Fall 2026",
+          googleCalendarSynced: serverAcc.googleCalendarSynced ?? true,
+          densityPreference: serverAcc.densityPreference || "comfortable",
+          provider: "google",
+          createdAt: serverAcc.createdAt,
+          lastLoginAt: new Date().toISOString(),
+          activeSessions: serverAcc.activeSessions || []
+        };
+
+        const accounts = getRegisteredAccounts();
+        const accIdx = accounts.findIndex(a => a.email.toLowerCase() === trimmedEmail);
+        const registeredAcc: RegisteredAccount = {
+          id: serverAcc.id,
+          email: serverAcc.email,
+          passwordHash: serverAcc.passwordHash || "",
+          fullName: serverAcc.fullName,
+          emailVerified: true,
+          googleVerified: true,
+          university: serverAcc.university,
+          degree: serverAcc.degree,
+          major: serverAcc.major,
+          semester: serverAcc.semester,
+          googleCalendarSynced: serverAcc.googleCalendarSynced,
+          densityPreference: serverAcc.densityPreference,
+          provider: "google",
+          createdAt: serverAcc.createdAt,
+          lastLoginAt: new Date().toISOString()
+        };
+
+        if (accIdx >= 0) {
+          accounts[accIdx] = registeredAcc;
+        } else {
+          accounts.push(registeredAcc);
+        }
+        saveRegisteredAccounts(accounts);
+
+        setUser(profile);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+
+        if (data.userData) {
+          localStorage.setItem(`student_portal_user_${serverAcc.id}_data`, JSON.stringify(data.userData));
+          setUserData(data.userData);
+        } else {
+          ensureUserDataSeeded(serverAcc.id);
+          loadUserData(serverAcc.id);
+        }
+
+        return { success: true };
+      } else if (data.notFound) {
+        return { 
+          success: false, 
+          notFound: true, 
+          email: trimmedEmail,
+          error: data.error || `No registered student account found for "${trimmedEmail}". Please switch to 'Create Account' to complete your academic registration.` 
+        };
+      }
+    } catch (err) {
+      console.warn("Server google-login query error, checking local store:", err);
+    }
+
+    // 2. Check Local Registered Accounts
+    const accounts = getRegisteredAccounts();
+    const existing = accounts.find(a => a.email.toLowerCase() === trimmedEmail);
+    if (existing) {
+      existing.lastLoginAt = new Date().toISOString();
+      saveRegisteredAccounts(accounts);
+
+      const profile: UserProfile = {
+        id: existing.id,
+        email: existing.email,
+        fullName: existing.fullName,
+        emailVerified: true,
+        googleVerified: true,
+        university: existing.university,
+        degree: existing.degree || "Bachelor of Technology (B.Tech)",
+        major: existing.major,
+        semester: existing.semester || "Fall 2026",
+        googleCalendarSynced: existing.googleCalendarSynced ?? true,
+        densityPreference: existing.densityPreference || "comfortable",
+        provider: "google",
+        createdAt: existing.createdAt,
+        lastLoginAt: existing.lastLoginAt
+      };
+
+      setUser(profile);
+      localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+      ensureUserDataSeeded(profile.id);
+      loadUserData(profile.id);
+      return { success: true };
+    }
+
+    return { 
+      success: false, 
+      notFound: true, 
+      email: trimmedEmail,
+      error: `No registered student account found for "${trimmedEmail}". Please switch to 'Create Account' to register your student profile first.` 
+    };
+  };
+
   const resendEmailConfirmation = async (email: string): Promise<{ success: boolean; error?: string }> => {
     await simulateNetworkLatency(500);
     const supabase = createClient();
@@ -1227,6 +1366,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithPassword,
       signUpWithPassword,
       signInWithGoogleCustom,
+      signInWithGoogleDirect,
       resendEmailConfirmation,
       toggleGoogleCalendarSync,
       toggleDensityPreference,

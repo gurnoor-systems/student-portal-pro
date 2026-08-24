@@ -309,6 +309,87 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 2.5 GOOGLE LOGIN (1-Click Login for Pre-Registered Student Accounts)
+    if (action === "google-login") {
+      const { email, deviceInfo } = body;
+      if (!email) {
+        return NextResponse.json({ error: "Google email is required" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail);
+
+      if (!account) {
+        const disk = readDiskDB();
+        account = disk.accounts[trimmedEmail];
+        if (account) {
+          accountsStore.set(trimmedEmail, account);
+        }
+      }
+
+      if (!account) {
+        return NextResponse.json({ 
+          success: false, 
+          notFound: true,
+          error: `No registered student account found for "${trimmedEmail}". Please switch to 'Create Account' to register your university profile first.` 
+        }, { status: 200 });
+      }
+
+      const deviceId = deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newSession: ActiveDeviceSession = {
+        deviceId,
+        deviceName: deviceInfo?.deviceName || (userAgent.includes("Mobile") ? "Mobile Phone (Google Sign-In)" : "Desktop Computer (Google Sign-In)"),
+        deviceType: deviceInfo?.deviceType || (userAgent.includes("Mobile") ? "mobile" : "desktop"),
+        ipAddress: ip,
+        browser: deviceInfo?.browser || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Browser"),
+        os: deviceInfo?.os || (userAgent.includes("iPhone") ? "iOS" : userAgent.includes("Android") ? "Android" : userAgent.includes("Windows") ? "Windows" : "macOS"),
+        loginTimestamp: new Date().toISOString(),
+        lastActiveTimestamp: new Date().toISOString()
+      };
+
+      const existingSessions = account.activeSessions || [];
+      const sessionIdx = existingSessions.findIndex(s => s.deviceId === deviceId);
+      if (sessionIdx >= 0) {
+        existingSessions[sessionIdx] = { ...existingSessions[sessionIdx], ...newSession, lastActiveTimestamp: new Date().toISOString() };
+      } else {
+        existingSessions.push(newSession);
+      }
+
+      account.activeSessions = existingSessions;
+      account.lastLoginAt = new Date().toISOString();
+      accountsStore.set(trimmedEmail, account);
+      syncToDisk();
+
+      return NextResponse.json({ 
+        success: true, 
+        currentDeviceId: deviceId,
+        account: {
+          id: account.id,
+          email: account.email,
+          fullName: account.fullName,
+          university: account.university,
+          degree: account.degree,
+          major: account.major,
+          semester: account.semester,
+          googleCalendarSynced: account.googleCalendarSynced,
+          densityPreference: account.densityPreference,
+          provider: "google",
+          createdAt: account.createdAt,
+          lastLoginAt: account.lastLoginAt,
+          activeSessions: existingSessions.map(s => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
+        },
+        userData: {
+          courses: account.courses || [],
+          tasks: account.tasks || [],
+          exams: account.exams || [],
+          documents: account.documents || []
+        }
+      });
+    }
+
     // 3. FETCH LATEST / HEARTBEAT (Real-time Cross-Device Sync)
     if (action === "fetch-latest" || action === "heartbeat") {
       const { email, deviceId } = body;
