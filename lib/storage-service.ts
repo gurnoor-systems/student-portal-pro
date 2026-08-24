@@ -72,24 +72,24 @@ export async function createUploadDestination(
  */
 export async function createDocumentViewUrl(
   fileKey: string,
-  storageProvider: "supabase" | "gdrive" | "simulated" = "supabase"
+  versionId: string = "v1",
+  googleDriveFileId?: string
 ): Promise<StorageViewResponse> {
-  const versionId = `v_${Date.now()}`;
+  const finalVersionId = versionId || `v_${Date.now()}`;
 
-  if (storageProvider === "gdrive") {
-    const driveViewUrl = `/api/storage/drive-stream?fileId=${encodeURIComponent(fileKey)}`;
+  if (googleDriveFileId) {
     return {
-      viewUrl: driveViewUrl,
-      versionId,
+      viewUrl: `/api/storage/drive-stream?fileId=${encodeURIComponent(googleDriveFileId)}`,
+      versionId: finalVersionId,
       storageProvider: "gdrive"
     };
   }
 
   const supabase = getSupabase();
-  if (!supabase || storageProvider === "simulated") {
+  if (!supabase) {
     return {
       viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
-      versionId,
+      versionId: finalVersionId,
       storageProvider: "simulated"
     };
   }
@@ -102,20 +102,20 @@ export async function createDocumentViewUrl(
     if (signedData?.signedUrl && !error) {
       return {
         viewUrl: signedData.signedUrl,
-        versionId,
+        versionId: finalVersionId,
         storageProvider: "supabase"
       };
     }
 
     return {
       viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
-      versionId,
+      versionId: finalVersionId,
       storageProvider: "simulated"
     };
   } catch {
     return {
       viewUrl: `/api/storage/mock-view?key=${encodeURIComponent(fileKey)}`,
-      versionId,
+      versionId: finalVersionId,
       storageProvider: "simulated"
     };
   }
