@@ -79,7 +79,8 @@ interface AuthContextType {
     password?: string
   ) => Promise<{ success: boolean; error?: string }>;
   signInWithGoogleDirect: (
-    googleEmail: string
+    googleEmail: string,
+    googleIdToken?: string
   ) => Promise<{ success: boolean; error?: string; notFound?: boolean; email?: string }>;
   signOut: () => Promise<void>;
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
@@ -718,7 +719,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 1-Click Google Sign In for Pre-Registered Student Accounts
   const signInWithGoogleDirect = async (
-    googleEmail: string
+    googleEmail: string,
+    googleIdToken?: string
   ): Promise<{ success: boolean; error?: string; notFound?: boolean; email?: string }> => {
     await simulateNetworkLatency(350);
 
@@ -737,6 +739,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           action: "google-login",
           email: trimmedEmail,
+          googleIdToken,
           deviceInfo
         })
       });

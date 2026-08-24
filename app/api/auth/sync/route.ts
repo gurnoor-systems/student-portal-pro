@@ -5,6 +5,8 @@ import os from "os";
 import { createClient } from "@supabase/supabase-js";
 import { ActiveDeviceSession } from "@/lib/types";
 import { sendPasswordResetEmailViaResend } from "@/lib/email-service";
+import { hashPassword, verifyPassword } from "@/lib/password-security";
+import { verifyGoogleIdToken } from "@/lib/google-auth-verifier";
 
 // Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Cloud Sync)
 // Supports Concurrent Multi-Device Sessions:
@@ -272,10 +274,13 @@ export async function POST(req: NextRequest) {
         isCurrentDevice: true
       };
 
+      const rawPassword = account.passwordHash || "";
+      const securePasswordHash = rawPassword ? (rawPassword.startsWith("pbkdf2$") ? rawPassword : hashPassword(rawPassword)) : "";
+
       const record: StoredAccount = {
         id: account.id || existing?.id || `usr_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
         email,
-        passwordHash: account.passwordHash,
+        passwordHash: securePasswordHash,
         fullName: account.fullName || "Student",
         university: account.university || "University of Waterloo",
         degree: account.degree || "Bachelor of Technology (B.Tech)",
@@ -333,11 +338,17 @@ export async function POST(req: NextRequest) {
         }, { status: 200 });
       }
 
-      if (account.passwordHash !== password) {
+      const { isValid, needsUpgrade } = verifyPassword(password, account.passwordHash);
+      if (!isValid) {
         return NextResponse.json({ 
           success: false, 
           error: "Incorrect password for this student account. Please check your credentials." 
         }, { status: 200 });
+      }
+
+      // Automatically upgrade legacy plaintext password to secure PBKDF2 salt hash
+      if (needsUpgrade) {
+        account.passwordHash = hashPassword(password);
       }
 
       const deviceId = deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -399,12 +410,30 @@ export async function POST(req: NextRequest) {
 
     // 2.5 GOOGLE LOGIN (1-Click Login for Pre-Registered Student Accounts)
     if (action === "google-login") {
-      const { email, deviceInfo } = body;
+      const { email, googleIdToken, deviceInfo } = body;
       if (!email) {
         return NextResponse.json({ error: "Google email is required" }, { status: 400 });
       }
 
       const trimmedEmail = email.trim().toLowerCase();
+
+      // Cryptographic Google OAuth ID Token Verification
+      if (googleIdToken) {
+        const verification = await verifyGoogleIdToken(googleIdToken);
+        if (!verification.valid || !verification.payload) {
+          return NextResponse.json({ 
+            success: false, 
+            error: verification.error || "Google Identity verification failed. Please authenticate with Google again." 
+          }, { status: 401 });
+        }
+        if (verification.payload.email.toLowerCase() !== trimmedEmail) {
+          return NextResponse.json({ 
+            success: false, 
+            error: "Security Alert: Google token email does not match requested student email." 
+          }, { status: 403 });
+        }
+      }
+
       let account = accountsStore.get(trimmedEmail);
 
       if (!account) {
@@ -621,11 +650,14 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Account not found" }, { status: 404 });
       }
 
-      if (currentPassword && account.passwordHash !== currentPassword) {
-        return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
+      if (currentPassword) {
+        const { isValid } = verifyPassword(currentPassword, account.passwordHash);
+        if (!isValid) {
+          return NextResponse.json({ error: "Current password is incorrect" }, { status: 401 });
+        }
       }
 
-      account.passwordHash = newPassword;
+      account.passwordHash = hashPassword(newPassword);
       accountsStore.set(trimmedEmail, account);
       syncToDisk();
       await saveAccountToSupabase(account);
@@ -706,7 +738,7 @@ export async function POST(req: NextRequest) {
       }
 
       if (account) {
-        account.passwordHash = newPassword;
+        account.passwordHash = hashPassword(newPassword);
         accountsStore.set(trimmedEmail, account);
         await saveAccountToSupabase(account);
       }
