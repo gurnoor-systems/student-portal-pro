@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-
 import os from "os";
+import { createClient } from "@supabase/supabase-js";
 
 const getAdminSecretKey = () => process.env.ADMIN_SECRET_KEY || "";
 const getAllowedAdminEmails = () => 
@@ -10,6 +10,19 @@ const getAllowedAdminEmails = () =>
     .split(",")
     .map(e => e.trim().toLowerCase())
     .filter(Boolean);
+
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  try {
+    return createClient(url, key, {
+      auth: { persistSession: false }
+    });
+  } catch {
+    return null;
+  }
+}
 
 function getDBFilePath(): string {
   if (process.env.VERCEL) {
@@ -236,7 +249,51 @@ export async function POST(req: NextRequest) {
       }
       writeDiskAccounts(accounts);
 
+      // Clean from Supabase PostgreSQL table & Auth
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          await supabase.from("profiles").delete().eq("email", email);
+          if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            try {
+              const { data: userData } = await supabase.auth.admin.listUsers();
+              const authUser = userData?.users?.find(u => u.email?.toLowerCase() === email);
+              if (authUser) {
+                await supabase.auth.admin.deleteUser(authUser.id);
+              }
+            } catch {}
+          }
+        } catch (e) {
+          console.warn("Supabase profile purge notice:", e);
+        }
+      }
+
       return NextResponse.json({ success: true, message: `Account ${email} permanently purged by Administrator` });
+    }
+
+    // 5. ADMIN PURGE ALL ACCOUNTS (Wipe entire database for fresh start)
+    if (action === "purge-all-accounts") {
+      Object.keys(accounts).forEach(k => delete accounts[k]);
+
+      if (memoryAccounts) {
+        memoryAccounts.clear();
+      }
+      writeDiskAccounts({});
+
+      // Clean all from Supabase PostgreSQL tables
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          await supabase.from("profiles").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+          await supabase.from("tasks").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+          await supabase.from("courses").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+          await supabase.from("exams").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+        } catch (e) {
+          console.warn("Supabase all profile purge notice:", e);
+        }
+      }
+
+      return NextResponse.json({ success: true, message: "All accounts permanently purged from database" });
     }
 
     return NextResponse.json({ error: "Unknown admin action" }, { status: 400 });

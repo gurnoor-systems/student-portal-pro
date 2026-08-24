@@ -250,6 +250,33 @@ export default function AdminConsolePage() {
     }
   };
 
+  const handlePurgeAllAccounts = async () => {
+    if (!confirm("⚠️ DANGER: Are you sure you want to permanently purge ALL student accounts and reset the database to 0? This cannot be undone.")) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/admin/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adminEmail,
+          passkey,
+          action: "purge-all-accounts"
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setActionFeedback("All student accounts and database records permanently reset to 0.");
+        setUsers([]);
+        fetchRegistry(passkey, adminEmail);
+        setTimeout(() => setActionFeedback(null), 4000);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // Helper for Device Icons
   const renderDeviceIcon = (type: string) => {
     if (type === "mobile") return <Smartphone className="w-4 h-4 text-emerald-400" />;
@@ -323,10 +350,20 @@ export default function AdminConsolePage() {
               </button>
 
               <button
-                onClick={handleAdminLogout}
-                className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-xs font-bold text-red-400 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                onClick={handlePurgeAllAccounts}
+                disabled={isDeleting}
+                className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/50 text-xs font-bold text-red-300 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Wipe all student accounts and reset to 0"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span>Purge All to 0</span>
+              </button>
+
+              <button
+                onClick={handleAdminLogout}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/15 text-xs font-bold text-slate-300 hover:text-white rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5 text-slate-400" />
                 <span>Exit Admin</span>
               </button>
             </div>
