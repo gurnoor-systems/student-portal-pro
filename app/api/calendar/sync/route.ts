@@ -26,7 +26,14 @@ export async function GET(request: Request) {
     );
 
     if (!googleRes.ok) {
-      const errData = await googleRes.json();
+      const errData = await googleRes.json().catch(() => ({}));
+      if (googleRes.status === 401) {
+        return NextResponse.json({ 
+          success: false, 
+          tokenExpired: true, 
+          message: "Google Calendar access expired. Please reconnect your account." 
+        }, { status: 200 });
+      }
       return NextResponse.json({ success: false, error: errData }, { status: googleRes.status });
     }
 
@@ -80,11 +87,24 @@ export async function POST(request: Request) {
         method: "POST",
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          Accept: "application/json"
         },
         body: JSON.stringify(eventPayload)
       }
     );
+
+    if (!googleRes.ok) {
+      const errData = await googleRes.json().catch(() => ({}));
+      if (googleRes.status === 401) {
+        return NextResponse.json({ 
+          success: false, 
+          tokenExpired: true, 
+          message: "Google Calendar session expired. Task saved locally." 
+        }, { status: 200 });
+      }
+      return NextResponse.json({ success: false, error: errData }, { status: googleRes.status });
+    }
 
     const data = await googleRes.json();
     return NextResponse.json({ success: googleRes.ok, googleEvent: data });

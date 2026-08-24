@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 
@@ -128,8 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Helper to persist updated user data across devices
+  const syncDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Helper to persist updated user data across devices with zero-latency local write & debounced cloud sync
   const persistUserData = useCallback((userId: string, next: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] }) => {
+    // 1. Instant local write (0ms latency for UI interactions)
     setUserData(next);
     const storageKey = `student_portal_user_${userId}_data`;
     try {
@@ -138,20 +141,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Failed to persist user data:", e);
     }
 
+    // 2. Debounced Cloud Sync (300ms) to coalesce rapid toggles into a single atomic write
     if (user?.email) {
-      try {
-        fetch("/api/auth/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "sync-data",
-            email: user.email,
-            userData: next
-          })
-        }).catch(() => {});
-      } catch {
-        // ignore
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current);
       }
+      syncDebounceRef.current = setTimeout(() => {
+        try {
+          fetch("/api/auth/sync", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "sync-data",
+              email: user.email,
+              userData: next
+            })
+          }).catch(() => {});
+        } catch {
+          // ignore
+        }
+      }, 300);
     }
   }, [user]);
 

@@ -61,6 +61,24 @@ export default function ClassroomsHub() {
     }
   });
 
+  // Cross-device materials synchronization (Syncs documents uploaded from Phone/Laptop)
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const raw = localStorage.getItem(`student_portal_user_${user.id}_materials`);
+      const localMats: MaterialItem[] = raw ? JSON.parse(raw) : [];
+      const remoteDocs = (userData as any).documents;
+      if (Array.isArray(remoteDocs) && remoteDocs.length > 0) {
+        const map = new Map<string, MaterialItem>();
+        localMats.forEach(m => map.set(m.id, m));
+        remoteDocs.forEach((m: MaterialItem) => map.set(m.id, m));
+        const merged = Array.from(map.values());
+        setMaterials(merged);
+        localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(merged));
+      }
+    } catch {}
+  }, [user, (userData as any).documents]);
+
   // Calculate total cloud storage used in MB
   const totalStorageMB = materials.reduce((acc, curr) => {
     const sizeStr = curr.fileSize || "0 MB";
@@ -80,11 +98,25 @@ export default function ClassroomsHub() {
     setTimeout(() => setPurgeToast(null), 4000);
   };
 
-  // Save materials to localStorage when updated
+  // Save materials to localStorage & broadcast to cloud database for multi-device sync
   const persistMaterials = (newMaterials: MaterialItem[]) => {
     setMaterials(newMaterials);
     if (user?.id) {
       localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(newMaterials));
+      if (user.email) {
+        fetch("/api/auth/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sync-data",
+            email: user.email,
+            userData: {
+              ...userData,
+              documents: newMaterials
+            }
+          })
+        }).catch(() => {});
+      }
     }
   };
 

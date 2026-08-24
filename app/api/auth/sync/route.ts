@@ -824,7 +824,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 10. DELETE ACCOUNT (Permanently purge from memory and disk database)
+    // 10. DELETE ACCOUNT (Permanently purge from memory, disk database, and Supabase Cloud)
     if (action === "delete-account") {
       const { email } = body;
       if (!email) {
@@ -839,6 +839,16 @@ export async function POST(req: NextRequest) {
       delete disk.accounts[trimmedEmail];
       delete disk.pins[trimmedEmail];
       writeDiskDB(disk);
+
+      // Cascade delete from Supabase PostgreSQL cloud database
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        try {
+          await supabase.from("profiles").delete().eq("email", trimmedEmail);
+        } catch (err) {
+          console.warn("Supabase profile delete notice:", err);
+        }
+      }
 
       return NextResponse.json({ success: true, message: "Account permanently purged from database" });
     }
