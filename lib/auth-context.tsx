@@ -574,7 +574,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Sync to Server Repository (Guarantees immediate login availability on other devices)
     try {
-      fetch("/api/auth/sync", {
+      await fetch("/api/auth/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -583,9 +583,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           courses: initialCourses,
           deviceInfo
         })
-      }).catch(() => {});
-    } catch {
-      // ignore
+      });
+    } catch (syncErr) {
+      console.warn("Cross-device registration sync warning:", syncErr);
     }
 
     const profile: UserProfile = {
