@@ -603,47 +603,90 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
                 {/* 1. Silent */}
                 <button
                   onClick={() => handleSelectSoundscape("none")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "none"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
                   }`}
                 >
                   <VolumeX className="w-4 h-4" />
-                  <span className="text-[11px] font-bold">Silent</span>
+                  <span className="text-[10px] font-bold">Silent</span>
                 </button>
 
                 {/* 2. Natural Rain */}
                 <button
                   onClick={() => handleSelectSoundscape("rain")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "rain"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
                   }`}
+                  title="Multi-Layer Droplet Resonance (100% Offline)"
                 >
-                  <CloudRain className="w-4 h-4" />
-                  <span className="text-[11px] font-bold">Rain</span>
+                  <CloudRain className="w-4 h-4 text-blue-400" />
+                  <span className="text-[10px] font-bold">Rain</span>
                 </button>
 
-                {/* 3. Deep Brown Noise */}
+                {/* 3. White Noise */}
+                <button
+                  onClick={() => handleSelectSoundscape("white")}
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    audioType === "white"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="Flat-Spectrum White Noise (Blocks Talking & Chatter)"
+                >
+                  <Radio className="w-4 h-4 text-slate-200" />
+                  <span className="text-[10px] font-bold">White</span>
+                </button>
+
+                {/* 4. Deep Brown Noise */}
                 <button
                   onClick={() => handleSelectSoundscape("brown")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "brown"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
                   }`}
-                  title="320Hz Cascaded Lowpass (ADHD Isolation)"
+                  title="320Hz Lowpass (ADHD & Deep Isolation)"
                 >
-                  <Radio className="w-4 h-4" />
-                  <span className="text-[11px] font-bold">Noise</span>
+                  <Radio className="w-4 h-4 text-amber-500" />
+                  <span className="text-[10px] font-bold">Brown</span>
                 </button>
 
-                {/* 4. 40Hz Gamma */}
+                {/* 5. Pink Noise */}
+                <button
+                  onClick={() => handleSelectSoundscape("pink")}
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    audioType === "pink"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="1/f Natural Waterfall Falloff"
+                >
+                  <Radio className="w-4 h-4 text-pink-400" />
+                  <span className="text-[10px] font-bold">Pink</span>
+                </button>
+
+                {/* 6. Forest Green */}
+                <button
+                  onClick={() => handleSelectSoundscape("green")}
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    audioType === "green"
+                      ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
+                      : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
+                  }`}
+                  title="500Hz Centered Natural Canopy"
+                >
+                  <Leaf className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[10px] font-bold">Green</span>
+                </button>
+
+                {/* 7. 40Hz Gamma */}
                 <button
                   onClick={() => handleSelectSoundscape("gamma")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "gamma"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
@@ -651,13 +694,13 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
                   title="40Hz Gamma Binaural Waves for Coding & Math"
                 >
                   <Zap className="w-4 h-4 text-amber-400" />
-                  <span className="text-[11px] font-bold">40Hz</span>
+                  <span className="text-[10px] font-bold">40Hz</span>
                 </button>
 
-                {/* 5. 10Hz Alpha */}
+                {/* 8. 10Hz Alpha */}
                 <button
                   onClick={() => handleSelectSoundscape("alpha")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "alpha"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
@@ -665,20 +708,21 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
                   title="10Hz Alpha Binaural Waves for Calm Alertness"
                 >
                   <Brain className="w-4 h-4 text-purple-400" />
-                  <span className="text-[11px] font-bold">Alpha</span>
+                  <span className="text-[10px] font-bold">Alpha</span>
                 </button>
 
-                {/* 6. Warm Cafe */}
+                {/* 9. Warm Cafe */}
                 <button
                   onClick={() => handleSelectSoundscape("cafe")}
-                  className={`p-3 rounded-2xl border text-center flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  className={`p-2.5 rounded-2xl border text-center flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                     audioType === "cafe"
                       ? "bg-[#1d63ff]/20 border-[#1d63ff] text-white"
                       : "bg-[#090d14] border-white/10 text-slate-400 hover:text-white"
                   }`}
+                  title="Warm Coffeehouse & Library Whisper"
                 >
                   <Coffee className="w-4 h-4 text-amber-600" />
-                  <span className="text-[11px] font-bold">Cafe</span>
+                  <span className="text-[10px] font-bold">Cafe</span>
                 </button>
 
               </div>

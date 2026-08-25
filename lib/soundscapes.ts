@@ -1,9 +1,9 @@
 "use client";
 
 // High-Fidelity Web Audio API Soundscape & Scientific Frequency Synthesizer
-// Zero external network delay, 100% offline, zero third-party tracking
+// Zero external network delay, 100% offline, zero third-party tracking, runs entirely in client memory
 
-export type SoundscapeType = "none" | "rain" | "brown" | "green" | "gamma" | "alpha" | "cafe";
+export type SoundscapeType = "none" | "rain" | "white" | "brown" | "pink" | "green" | "gamma" | "alpha" | "cafe";
 
 export interface SoundscapeOption {
   id: SoundscapeType;
@@ -16,9 +16,11 @@ export interface SoundscapeOption {
 export const SOUNDSCAPE_OPTIONS: SoundscapeOption[] = [
   { id: "none", name: "Silent", category: "Quiet", iconName: "VolumeX" },
   { id: "rain", name: "Natural Rain", category: "Nature", scientificLabel: "Droplet Resonance & Pink Falloff", iconName: "CloudRain" },
-  { id: "brown", name: "Deep Brown Noise", category: "Noise", scientificLabel: "320Hz Lowpass (ADHD Isolation)", iconName: "Radio" },
-  { id: "green", name: "Forest Green", category: "Nature", scientificLabel: "500Hz Centered Natural Spectrum", iconName: "Leaf" },
-  { id: "gamma", name: "40 Hz Gamma", category: "Binaural", scientificLabel: "Coding & High-Intensity Problem Solving", iconName: "Zap" },
+  { id: "white", name: "White Noise", category: "Noise", scientificLabel: "Flat Power Spectrum (Distraction Blocker)", iconName: "Radio" },
+  { id: "brown", name: "Brown Noise", category: "Noise", scientificLabel: "320Hz Lowpass (ADHD & Deep Isolation)", iconName: "Radio" },
+  { id: "pink", name: "Pink Noise", category: "Noise", scientificLabel: "1/f Natural Waterfall Falloff", iconName: "Radio" },
+  { id: "green", name: "Forest Green", category: "Nature", scientificLabel: "500Hz Centered Canopy Spectrum", iconName: "Leaf" },
+  { id: "gamma", name: "40 Hz Gamma", category: "Binaural", scientificLabel: "Working Memory & Coding Flow", iconName: "Zap" },
   { id: "alpha", name: "10 Hz Alpha", category: "Binaural", scientificLabel: "Calm Alertness & Deep Reading", iconName: "Brain" },
   { id: "cafe", name: "Warm Cafe", category: "Atmosphere", scientificLabel: "Diffuse Acoustic Ambience", iconName: "Coffee" }
 ];
@@ -90,8 +92,51 @@ class NaturalSoundscapeEngine {
     this.currentType = type;
 
     switch (type) {
+      case "white": {
+        // Pure Flat-Spectrum White Noise (100% offline, blocks speech & background chatter)
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = (Math.random() * 2 - 1) * 0.28;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = noiseBuffer;
+        source.loop = true;
+        source.connect(this.gainNode);
+        source.start();
+        this.activeNodes.push(source);
+        break;
+      }
+
+      case "pink": {
+        // Paul Kellet's 1/f Pink Noise Filter (Soothing rainfall-like spectral roll-off)
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          b3 = 0.86650 * b3 + white * 0.3104856;
+          b4 = 0.55000 * b4 + white * 0.5329522;
+          b5 = -0.7616 * b5 - white * 0.0168980;
+          output[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.12;
+          b6 = white * 0.115926;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = noiseBuffer;
+        source.loop = true;
+        source.connect(this.gainNode);
+        source.start();
+        this.activeNodes.push(source);
+        break;
+      }
+
       case "brown": {
-        // High-order Cascaded Brown Noise with warm sub-bass roll-off
+        // High-order Cascaded Brown Noise with warm sub-bass roll-off (ADHD focus)
         const bufferSize = ctx.sampleRate * 2;
         const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
@@ -100,7 +145,7 @@ class NaturalSoundscapeEngine {
           const white = Math.random() * 2 - 1;
           output[i] = (lastOut + 0.02 * white) / 1.02;
           lastOut = output[i];
-          output[i] *= 3.8; // Gain compensation
+          output[i] *= 3.8;
         }
         const source = ctx.createBufferSource();
         source.buffer = noiseBuffer;
@@ -123,7 +168,7 @@ class NaturalSoundscapeEngine {
       }
 
       case "green": {
-        // Natural Green Noise (Centered around 500Hz, simulating wind & canopy leaves)
+        // Natural Green Noise (Centered around 520Hz, simulating forest wind & tree canopies)
         const bufferSize = ctx.sampleRate * 2;
         const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
         const output = noiseBuffer.getChannelData(0);
@@ -181,7 +226,7 @@ class NaturalSoundscapeEngine {
 
       case "gamma": {
         // 40 Hz Gamma Waves (Carrier: 200 Hz Left, 240 Hz Right)
-        // Scientifically proven to synchronize neural gamma oscillations for working memory & problem solving
+        // Synchronizes neural gamma oscillations for working memory & problem solving
         const merger = ctx.createChannelMerger(2);
 
         const oscL = ctx.createOscillator();
