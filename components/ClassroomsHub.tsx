@@ -102,7 +102,17 @@ export default function ClassroomsHub() {
   const persistMaterials = (newMaterials: MaterialItem[]) => {
     setMaterials(newMaterials);
     if (user?.id) {
-      localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(newMaterials));
+      try {
+        // Strip heavy base64 binary blobs before saving to localStorage to respect the 5MB browser quota
+        const sanitizedForStorage = newMaterials.map(m => {
+          const { ...rest } = m;
+          return rest;
+        });
+        localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(sanitizedForStorage));
+      } catch (storageErr) {
+        console.warn("LocalStorage quota protected. Storing in cloud only.", storageErr);
+      }
+
       if (user.email) {
         fetch("/api/auth/sync", {
           method: "POST",

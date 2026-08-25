@@ -24,6 +24,23 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                var theme = localStorage.getItem('student_portal_theme');
+                if (theme === 'light') {
+                  document.documentElement.classList.remove('dark');
+                  document.documentElement.classList.add('light');
+                } else {
+                  document.documentElement.classList.add('dark');
+                }
+              } catch (e) {}
+            `
+          }}
+        />
+      </head>
       <body 
         className="antialiased selection:bg-[#1c69d4]/30 selection:text-white bg-[var(--canvas)] text-[var(--ink)]"
         suppressHydrationWarning

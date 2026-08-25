@@ -46,6 +46,12 @@ interface FocusSanctuaryProps {
 
 const MUSIC_PRESETS = [
   { 
+    id: "cafe_ambience", 
+    name: "Parisian Cafe & Jazz Ambience", 
+    url: "https://www.youtube-nocookie.com/embed/p8qaPV4oOaY?autoplay=1",
+    subtitle: "Warm Acoustic Cafe & Piano"
+  },
+  { 
     id: "rain_ambient", 
     name: "Cozy Rain & Thunder", 
     url: "https://www.youtube-nocookie.com/embed/lP4wSXSH9nM?autoplay=1",
@@ -126,14 +132,18 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   const [flowtimeSeconds, setFlowtimeSeconds] = useState<number>(0);
   const [isRunning, setIsRunning] = useState<boolean>(false);
 
+  // Session timestamp tracking for 100% drift-free accuracy across background tabs
+  const sessionEndTimeRef = React.useRef<number | null>(null);
+  const sessionStartTimeRef = React.useRef<number | null>(null);
+
   // Attached Task
   const [attachedTaskId, setAttachedTaskId] = useState<string>(userData.tasks[0]?.id || "");
 
   // Audio system: 'none' | 'rain' | 'brown' | 'green' | 'gamma' | 'alpha' | 'cafe' | 'music_embed'
   const [audioType, setAudioType] = useState<SoundscapeType | "music_embed">("none");
   const [volume, setVolume] = useState<number>(0.5);
-  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("jazz_live");
-  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://www.youtube-nocookie.com/embed/9oRTEsEpKNM?autoplay=1");
+  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("cafe_ambience");
+  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://www.youtube-nocookie.com/embed/p8qaPV4oOaY?autoplay=1");
   const [isCustomUrlInputOpen, setIsCustomUrlInputOpen] = useState<boolean>(false);
   const [inputUrl, setInputUrl] = useState<string>("");
 
@@ -160,6 +170,8 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   // Handle timer duration changes
   useEffect(() => {
     if (!isRunning) {
+      sessionStartTimeRef.current = null;
+      sessionEndTimeRef.current = null;
       if (timerMode === "pomodoro") {
         setSelectedDuration(25 * 60);
         setTimeLeft(25 * 60);
@@ -175,24 +187,33 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     }
   }, [timerMode, customMinutes, isRunning]);
 
-  // Main countdown loop
+  // Main countdown loop with drift-free timestamp deltas
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
     if (isRunning) {
+      if (!sessionStartTimeRef.current) {
+        sessionStartTimeRef.current = Date.now() - (flowtimeSeconds * 1000);
+      }
+      if (!sessionEndTimeRef.current && timerMode !== "flowtime") {
+        sessionEndTimeRef.current = Date.now() + (timeLeft * 1000);
+      }
+
       interval = setInterval(() => {
         if (timerMode === "flowtime") {
-          setFlowtimeSeconds(prev => prev + 1);
+          const elapsedSec = Math.floor((Date.now() - (sessionStartTimeRef.current || Date.now())) / 1000);
+          setFlowtimeSeconds(elapsedSec);
         } else {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              handleSessionComplete();
-              return 0;
-            }
-            return prev - 1;
-          });
+          const remainingSec = Math.max(0, Math.ceil(((sessionEndTimeRef.current || Date.now()) - Date.now()) / 1000));
+          setTimeLeft(remainingSec);
+          if (remainingSec <= 0) {
+            handleSessionComplete();
+          }
         }
-      }, 1000);
+      }, 500);
+    } else {
+      sessionStartTimeRef.current = null;
+      sessionEndTimeRef.current = null;
     }
 
     return () => {

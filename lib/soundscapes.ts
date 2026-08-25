@@ -322,14 +322,14 @@ class NaturalSoundscapeEngine {
         murmurSource.start();
         this.activeNodes.push(murmurSource, murmurFilter, murmurGain);
 
-        // Layer 2: Generative Warm Jazz Piano Chords in Cafe Background
+        // Layer 2: Generative Warm Jazz Piano Chords in Cafe Background (Boosted Volume & Fidelity)
         const jazzMasterGain = ctx.createGain();
-        jazzMasterGain.gain.setValueAtTime(0.38, ctx.currentTime);
+        jazzMasterGain.gain.setValueAtTime(0.68, ctx.currentTime);
 
-        // Warm analog lowpass filter (simulating music playing through cafe speakers)
+        // Warm analog lowpass filter (simulating rich music playing through cafe speakers)
         const jazzFilter = ctx.createBiquadFilter();
         jazzFilter.type = "lowpass";
-        jazzFilter.frequency.setValueAtTime(560, ctx.currentTime);
+        jazzFilter.frequency.setValueAtTime(680, ctx.currentTime);
 
         jazzMasterGain.connect(jazzFilter);
         jazzFilter.connect(this.gainNode);
@@ -362,7 +362,7 @@ class NaturalSoundscapeEngine {
             osc.detune.setValueAtTime((Math.random() * 4 - 2), now);
 
             const noteGain = ctx.createGain();
-            const noteVol = 0.075 / Math.sqrt(chord.length);
+            const noteVol = 0.12 / Math.sqrt(chord.length);
             
             // Soft key strike and gentle decay
             noteGain.gain.setValueAtTime(0.0001, now);
@@ -374,6 +374,8 @@ class NaturalSoundscapeEngine {
 
             osc.start(now);
             osc.stop(now + 4.0);
+
+            this.activeNodes.push(osc, noteGain);
           });
         };
 
