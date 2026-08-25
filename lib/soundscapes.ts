@@ -293,15 +293,15 @@ class NaturalSoundscapeEngine {
         // 2. Ambient Room Murmur & Velvet Acoustic Reverb
         // 3. Occasional Delicate Cup / Ceramic Clinks
 
-        // Layer 1: Ambient Coffeehouse Murmur & Air Texture
+        // Layer 1: Ambient Coffeehouse Murmur & Room Acoustics
         const bufferSize = ctx.sampleRate * 2;
         const murmurBuffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
         const leftMurmur = murmurBuffer.getChannelData(0);
         const rightMurmur = murmurBuffer.getChannelData(1);
 
         for (let i = 0; i < bufferSize; i++) {
-          leftMurmur[i] = (Math.random() * 2 - 1) * 0.16;
-          rightMurmur[i] = (Math.random() * 2 - 1) * 0.16;
+          leftMurmur[i] = (Math.random() * 2 - 1) * 0.12;
+          rightMurmur[i] = (Math.random() * 2 - 1) * 0.12;
         }
 
         const murmurSource = ctx.createBufferSource();
@@ -310,11 +310,11 @@ class NaturalSoundscapeEngine {
 
         const murmurFilter = ctx.createBiquadFilter();
         murmurFilter.type = "bandpass";
-        murmurFilter.frequency.setValueAtTime(460, ctx.currentTime);
+        murmurFilter.frequency.setValueAtTime(450, ctx.currentTime);
         murmurFilter.Q.setValueAtTime(0.65, ctx.currentTime);
 
         const murmurGain = ctx.createGain();
-        murmurGain.gain.setValueAtTime(0.28, ctx.currentTime);
+        murmurGain.gain.setValueAtTime(0.18, ctx.currentTime);
 
         murmurSource.connect(murmurFilter);
         murmurFilter.connect(murmurGain);
@@ -322,14 +322,14 @@ class NaturalSoundscapeEngine {
         murmurSource.start();
         this.activeNodes.push(murmurSource, murmurFilter, murmurGain);
 
-        // Layer 2: Generative Warm Jazz Piano Chords in Cafe Background (Boosted Volume & Fidelity)
+        // Layer 2: Generative Warm Acoustic Rhodes Jazz Chords (Clear, Soothing & Present)
         const jazzMasterGain = ctx.createGain();
-        jazzMasterGain.gain.setValueAtTime(0.68, ctx.currentTime);
+        jazzMasterGain.gain.setValueAtTime(0.58, ctx.currentTime);
 
-        // Warm analog lowpass filter (simulating rich music playing through cafe speakers)
+        // Mellow acoustic filter (750Hz gives rich harmonic warmth without harshness)
         const jazzFilter = ctx.createBiquadFilter();
         jazzFilter.type = "lowpass";
-        jazzFilter.frequency.setValueAtTime(680, ctx.currentTime);
+        jazzFilter.frequency.setValueAtTime(750, ctx.currentTime);
 
         jazzMasterGain.connect(jazzFilter);
         jazzFilter.connect(this.gainNode);
@@ -346,6 +346,7 @@ class NaturalSoundscapeEngine {
         ];
 
         let chordIndex = 0;
+        const noteOscillators: AudioNode[] = [];
 
         const playNextChord = () => {
           if (!this.gainNode || this.currentType !== "cafe") return;
@@ -358,15 +359,15 @@ class NaturalSoundscapeEngine {
             osc.type = idx % 2 === 0 ? "sine" : "triangle";
             osc.frequency.setValueAtTime(freq, now);
 
-            // Subtle detune for vintage Rhodes acoustic vibe
+            // Vintage Rhodes acoustic detune
             osc.detune.setValueAtTime((Math.random() * 4 - 2), now);
 
             const noteGain = ctx.createGain();
             const noteVol = 0.12 / Math.sqrt(chord.length);
             
-            // Soft key strike and gentle decay
+            // Soft tactile key press and gentle 4s decay
             noteGain.gain.setValueAtTime(0.0001, now);
-            noteGain.gain.linearRampToValueAtTime(noteVol, now + 0.18);
+            noteGain.gain.linearRampToValueAtTime(noteVol, now + 0.16);
             noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.9);
 
             osc.connect(noteGain);
@@ -375,6 +376,7 @@ class NaturalSoundscapeEngine {
             osc.start(now);
             osc.stop(now + 4.0);
 
+            noteOscillators.push(osc, noteGain);
             this.activeNodes.push(osc, noteGain);
           });
         };
@@ -392,7 +394,7 @@ class NaturalSoundscapeEngine {
         // Layer 3: Subtle Distant Ceramic Cup Clink Effect
         const clinkTimer = setInterval(() => {
           if (!this.gainNode || this.currentType !== "cafe") return;
-          if (Math.random() > 0.4) return; // 60% chance every 8s
+          if (Math.random() > 0.45) return; // 55% chance every 8s
 
           const now = ctx.currentTime;
           const clinkOsc = ctx.createOscillator();
@@ -406,8 +408,8 @@ class NaturalSoundscapeEngine {
 
           const clinkGain = ctx.createGain();
           clinkGain.gain.setValueAtTime(0.0001, now);
-          clinkGain.gain.linearRampToValueAtTime(0.02, now + 0.01);
-          clinkGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+          clinkGain.gain.linearRampToValueAtTime(0.015, now + 0.01);
+          clinkGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
 
           clinkOsc.connect(clinkFilter);
           clinkFilter.connect(clinkGain);
@@ -415,6 +417,7 @@ class NaturalSoundscapeEngine {
 
           clinkOsc.start(now);
           clinkOsc.stop(now + 0.35);
+          this.activeNodes.push(clinkOsc, clinkFilter, clinkGain);
         }, 8000);
 
         this.activeNodes.push(clinkTimer as any);

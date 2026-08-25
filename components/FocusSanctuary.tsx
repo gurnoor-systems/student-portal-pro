@@ -46,10 +46,10 @@ interface FocusSanctuaryProps {
 
 const MUSIC_PRESETS = [
   { 
-    id: "cafe_ambience", 
-    name: "Parisian Cafe & Jazz Ambience", 
-    url: "https://www.youtube-nocookie.com/embed/p8qaPV4oOaY?autoplay=1",
-    subtitle: "Warm Acoustic Cafe & Piano"
+    id: "cafe_piano", 
+    name: "Parisian Cafe Jazz", 
+    url: "https://www.youtube-nocookie.com/embed/tQyUQNpSiwc?autoplay=1",
+    subtitle: "Acoustic Piano & Warm Ambience"
   },
   { 
     id: "rain_ambient", 
@@ -132,9 +132,10 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   const [flowtimeSeconds, setFlowtimeSeconds] = useState<number>(0);
   const [isRunning, setIsRunning] = useState<boolean>(false);
 
-  // Session timestamp tracking for 100% drift-free accuracy across background tabs
-  const sessionEndTimeRef = React.useRef<number | null>(null);
-  const sessionStartTimeRef = React.useRef<number | null>(null);
+  // Accurate timestamp-based timing to prevent browser background tab throttling
+  const sessionStartRef = React.useRef<number | null>(null);
+  const initialTimeLeftRef = React.useRef<number>(25 * 60);
+  const initialFlowtimeRef = React.useRef<number>(0);
 
   // Attached Task
   const [attachedTaskId, setAttachedTaskId] = useState<string>(userData.tasks[0]?.id || "");
@@ -142,8 +143,8 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   // Audio system: 'none' | 'rain' | 'brown' | 'green' | 'gamma' | 'alpha' | 'cafe' | 'music_embed'
   const [audioType, setAudioType] = useState<SoundscapeType | "music_embed">("none");
   const [volume, setVolume] = useState<number>(0.5);
-  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("cafe_ambience");
-  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://www.youtube-nocookie.com/embed/p8qaPV4oOaY?autoplay=1");
+  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("cafe_piano");
+  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://www.youtube-nocookie.com/embed/tQyUQNpSiwc?autoplay=1");
   const [isCustomUrlInputOpen, setIsCustomUrlInputOpen] = useState<boolean>(false);
   const [inputUrl, setInputUrl] = useState<string>("");
 
@@ -170,8 +171,6 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   // Handle timer duration changes
   useEffect(() => {
     if (!isRunning) {
-      sessionStartTimeRef.current = null;
-      sessionEndTimeRef.current = null;
       if (timerMode === "pomodoro") {
         setSelectedDuration(25 * 60);
         setTimeLeft(25 * 60);
@@ -187,33 +186,37 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     }
   }, [timerMode, customMinutes, isRunning]);
 
-  // Main countdown loop with drift-free timestamp deltas
+  // Timestamp anchor setup when session starts
+  useEffect(() => {
+    if (isRunning) {
+      sessionStartRef.current = Date.now();
+      initialTimeLeftRef.current = timeLeft;
+      initialFlowtimeRef.current = flowtimeSeconds;
+    } else {
+      sessionStartRef.current = null;
+    }
+  }, [isRunning]);
+
+  // Main countdown loop with timestamp delta sync (100% accurate even if browser tab is backgrounded)
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
 
     if (isRunning) {
-      if (!sessionStartTimeRef.current) {
-        sessionStartTimeRef.current = Date.now() - (flowtimeSeconds * 1000);
-      }
-      if (!sessionEndTimeRef.current && timerMode !== "flowtime") {
-        sessionEndTimeRef.current = Date.now() + (timeLeft * 1000);
-      }
-
       interval = setInterval(() => {
+        const now = Date.now();
+        const start = sessionStartRef.current || now;
+        const elapsedSec = Math.floor((now - start) / 1000);
+
         if (timerMode === "flowtime") {
-          const elapsedSec = Math.floor((Date.now() - (sessionStartTimeRef.current || Date.now())) / 1000);
-          setFlowtimeSeconds(elapsedSec);
+          setFlowtimeSeconds(initialFlowtimeRef.current + elapsedSec);
         } else {
-          const remainingSec = Math.max(0, Math.ceil(((sessionEndTimeRef.current || Date.now()) - Date.now()) / 1000));
-          setTimeLeft(remainingSec);
-          if (remainingSec <= 0) {
+          const remaining = Math.max(0, initialTimeLeftRef.current - elapsedSec);
+          setTimeLeft(remaining);
+          if (remaining <= 0) {
             handleSessionComplete();
           }
         }
       }, 500);
-    } else {
-      sessionStartTimeRef.current = null;
-      sessionEndTimeRef.current = null;
     }
 
     return () => {

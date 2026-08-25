@@ -103,14 +103,16 @@ export default function ClassroomsHub() {
     setMaterials(newMaterials);
     if (user?.id) {
       try {
-        // Strip heavy base64 binary blobs before saving to localStorage to respect the 5MB browser quota
-        const sanitizedForStorage = newMaterials.map(m => {
-          const { ...rest } = m;
-          return rest;
-        });
-        localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(sanitizedForStorage));
+        localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(newMaterials));
       } catch (storageErr) {
-        console.warn("LocalStorage quota protected. Storing in cloud only.", storageErr);
+        console.warn("LocalStorage quota guard: Saving lightweight metadata:", storageErr);
+        try {
+          const lightMaterials = newMaterials.map(m => ({
+            ...m,
+            fileUrl: m.fileUrl?.startsWith("data:") ? "" : m.fileUrl
+          }));
+          localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(lightMaterials));
+        } catch {}
       }
 
       if (user.email) {
@@ -118,14 +120,14 @@ export default function ClassroomsHub() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            action: "sync-data",
+            action: "sync",
             email: user.email,
             userData: {
               ...userData,
               documents: newMaterials
             }
           })
-        }).catch(() => {});
+        }).catch(err => console.warn("Cloud documents sync notice:", err));
       }
     }
   };

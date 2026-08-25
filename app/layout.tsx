@@ -29,12 +29,12 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var theme = localStorage.getItem('student_portal_theme');
-                if (theme === 'light') {
-                  document.documentElement.classList.remove('dark');
-                  document.documentElement.classList.add('light');
+                var saved = localStorage.getItem("student_portal_pro_theme") || localStorage.getItem("theme");
+                if (saved === "light") {
+                  document.documentElement.classList.remove("dark");
+                  document.documentElement.classList.add("light");
                 } else {
-                  document.documentElement.classList.add('dark');
+                  document.documentElement.classList.add("dark");
                 }
               } catch (e) {}
             `
