@@ -46,6 +46,12 @@ interface FocusSanctuaryProps {
 
 const MUSIC_PRESETS = [
   { 
+    id: "rain_ambient", 
+    name: "Cozy Rain & Thunder", 
+    url: "https://www.youtube-nocookie.com/embed/lP4wSXSH9nM?autoplay=1",
+    subtitle: "Deep Natural Rain Ambience"
+  },
+  { 
     id: "jazz_live", 
     name: "Rainy Jazz Cafe (Live)", 
     url: "https://www.youtube-nocookie.com/embed/9oRTEsEpKNM?autoplay=1",
