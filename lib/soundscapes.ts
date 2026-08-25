@@ -22,14 +22,14 @@ export const SOUNDSCAPE_OPTIONS: SoundscapeOption[] = [
   { id: "green", name: "Forest Green", category: "Nature", scientificLabel: "500Hz Centered Canopy Spectrum", iconName: "Leaf" },
   { id: "gamma", name: "40 Hz Gamma", category: "Binaural", scientificLabel: "Working Memory & Coding Flow", iconName: "Zap" },
   { id: "alpha", name: "10 Hz Alpha", category: "Binaural", scientificLabel: "Calm Alertness & Deep Reading", iconName: "Brain" },
-  { id: "cafe", name: "Warm Cafe", category: "Atmosphere", scientificLabel: "Diffuse Acoustic Ambience", iconName: "Coffee" }
+  { id: "cafe", name: "Parisian Cafe", category: "Atmosphere", scientificLabel: "Warm Rhodes Jazz & Coffeehouse Ambience", iconName: "Coffee" }
 ];
 
 class NaturalSoundscapeEngine {
   private ctx: AudioContext | null = null;
   private currentType: SoundscapeType = "none";
   private gainNode: GainNode | null = null;
-  private activeNodes: (AudioNode | number)[] = [];
+  private activeNodes: (AudioNode | number | NodeJS.Timeout)[] = [];
   private volume: number = 0.5;
 
   private getContext(): AudioContext {
@@ -60,12 +60,13 @@ class NaturalSoundscapeEngine {
 
   public stop() {
     try {
-      this.activeNodes.forEach(n => {
-        if (typeof n === "number") {
+      this.activeNodes.forEach((n: any) => {
+        if (typeof n === "number" || (typeof n === "object" && n && "_idleTimeout" in n)) {
           clearInterval(n);
-        } else if (n && "stop" in n && typeof (n as any).stop === "function") {
-          (n as any).stop();
-        } else if (n && "disconnect" in n && typeof n.disconnect === "function") {
+        } else if (n && typeof n.stop === "function") {
+          n.stop();
+        }
+        if (n && typeof n.disconnect === "function") {
           n.disconnect();
         }
       });
@@ -287,26 +288,134 @@ class NaturalSoundscapeEngine {
       }
 
       case "cafe": {
-        // Warm Coffeehouse & Library Whisper
-        const osc1 = ctx.createOscillator();
-        osc1.type = "triangle";
-        osc1.frequency.setValueAtTime(110, ctx.currentTime);
+        // Multi-Layer Realistic Coffeehouse Ambience:
+        // 1. Distant Warm Vintage Jazz Rhodes Chords (Generative Progression)
+        // 2. Ambient Room Murmur & Velvet Acoustic Reverb
+        // 3. Occasional Delicate Cup / Ceramic Clinks
 
-        const osc2 = ctx.createOscillator();
-        osc2.type = "sine";
-        osc2.frequency.setValueAtTime(165, ctx.currentTime);
+        // Layer 1: Ambient Coffeehouse Murmur & Air Texture
+        const bufferSize = ctx.sampleRate * 2;
+        const murmurBuffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+        const leftMurmur = murmurBuffer.getChannelData(0);
+        const rightMurmur = murmurBuffer.getChannelData(1);
 
-        const filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.setValueAtTime(240, ctx.currentTime);
+        for (let i = 0; i < bufferSize; i++) {
+          leftMurmur[i] = (Math.random() * 2 - 1) * 0.16;
+          rightMurmur[i] = (Math.random() * 2 - 1) * 0.16;
+        }
 
-        osc1.connect(filter);
-        osc2.connect(filter);
-        filter.connect(this.gainNode);
+        const murmurSource = ctx.createBufferSource();
+        murmurSource.buffer = murmurBuffer;
+        murmurSource.loop = true;
 
-        osc1.start();
-        osc2.start();
-        this.activeNodes.push(osc1, osc2, filter);
+        const murmurFilter = ctx.createBiquadFilter();
+        murmurFilter.type = "bandpass";
+        murmurFilter.frequency.setValueAtTime(460, ctx.currentTime);
+        murmurFilter.Q.setValueAtTime(0.65, ctx.currentTime);
+
+        const murmurGain = ctx.createGain();
+        murmurGain.gain.setValueAtTime(0.28, ctx.currentTime);
+
+        murmurSource.connect(murmurFilter);
+        murmurFilter.connect(murmurGain);
+        murmurGain.connect(this.gainNode);
+        murmurSource.start();
+        this.activeNodes.push(murmurSource, murmurFilter, murmurGain);
+
+        // Layer 2: Generative Warm Jazz Piano Chords in Cafe Background
+        const jazzMasterGain = ctx.createGain();
+        jazzMasterGain.gain.setValueAtTime(0.38, ctx.currentTime);
+
+        // Warm analog lowpass filter (simulating music playing through cafe speakers)
+        const jazzFilter = ctx.createBiquadFilter();
+        jazzFilter.type = "lowpass";
+        jazzFilter.frequency.setValueAtTime(560, ctx.currentTime);
+
+        jazzMasterGain.connect(jazzFilter);
+        jazzFilter.connect(this.gainNode);
+        this.activeNodes.push(jazzMasterGain, jazzFilter);
+
+        // Curated Lofi & Jazz Coffeehouse Chords (Frequencies in Hz)
+        const JAZZ_CHORDS = [
+          [130.81, 164.81, 196.00, 246.94, 293.66], // Cmaj9
+          [110.00, 146.83, 164.81, 196.00, 246.94], // Am9
+          [146.83, 174.61, 220.00, 261.63, 329.63], // Dm9
+          [98.00, 146.83, 174.61, 246.94, 329.63],  // G13
+          [164.81, 196.00, 246.94, 293.66, 392.00], // Em7
+          [87.31, 130.81, 174.61, 220.00, 261.63]   // Fmaj7
+        ];
+
+        let chordIndex = 0;
+
+        const playNextChord = () => {
+          if (!this.gainNode || this.currentType !== "cafe") return;
+          const chord = JAZZ_CHORDS[chordIndex % JAZZ_CHORDS.length];
+          chordIndex++;
+
+          const now = ctx.currentTime;
+          chord.forEach((freq, idx) => {
+            const osc = ctx.createOscillator();
+            osc.type = idx % 2 === 0 ? "sine" : "triangle";
+            osc.frequency.setValueAtTime(freq, now);
+
+            // Subtle detune for vintage Rhodes acoustic vibe
+            osc.detune.setValueAtTime((Math.random() * 4 - 2), now);
+
+            const noteGain = ctx.createGain();
+            const noteVol = 0.075 / Math.sqrt(chord.length);
+            
+            // Soft key strike and gentle decay
+            noteGain.gain.setValueAtTime(0.0001, now);
+            noteGain.gain.linearRampToValueAtTime(noteVol, now + 0.18);
+            noteGain.gain.exponentialRampToValueAtTime(0.0001, now + 3.9);
+
+            osc.connect(noteGain);
+            noteGain.connect(jazzMasterGain);
+
+            osc.start(now);
+            osc.stop(now + 4.0);
+          });
+        };
+
+        // Play initial chord immediately
+        playNextChord();
+
+        // Sequence chords every 3.8 seconds
+        const chordTimer = setInterval(() => {
+          playNextChord();
+        }, 3800);
+
+        this.activeNodes.push(chordTimer as any);
+
+        // Layer 3: Subtle Distant Ceramic Cup Clink Effect
+        const clinkTimer = setInterval(() => {
+          if (!this.gainNode || this.currentType !== "cafe") return;
+          if (Math.random() > 0.4) return; // 60% chance every 8s
+
+          const now = ctx.currentTime;
+          const clinkOsc = ctx.createOscillator();
+          clinkOsc.type = "sine";
+          clinkOsc.frequency.setValueAtTime(1600 + Math.random() * 800, now);
+
+          const clinkFilter = ctx.createBiquadFilter();
+          clinkFilter.type = "bandpass";
+          clinkFilter.frequency.setValueAtTime(1800, now);
+          clinkFilter.Q.setValueAtTime(8.0, now);
+
+          const clinkGain = ctx.createGain();
+          clinkGain.gain.setValueAtTime(0.0001, now);
+          clinkGain.gain.linearRampToValueAtTime(0.02, now + 0.01);
+          clinkGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.32);
+
+          clinkOsc.connect(clinkFilter);
+          clinkFilter.connect(clinkGain);
+          clinkGain.connect(this.gainNode);
+
+          clinkOsc.start(now);
+          clinkOsc.stop(now + 0.35);
+        }, 8000);
+
+        this.activeNodes.push(clinkTimer as any);
         break;
       }
     }
