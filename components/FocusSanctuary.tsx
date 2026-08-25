@@ -45,11 +45,68 @@ interface FocusSanctuaryProps {
 }
 
 const MUSIC_PRESETS = [
-  { id: "lofi", name: "Lofi Study Beats", url: "https://open.spotify.com/embed/playlist/0vvXsWCC9xrXsKd4FyS8kM" },
-  { id: "jazz", name: "Rainy Jazz Cafe", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXbITWG1ZJKYt" },
-  { id: "synth", name: "Synthwave Focus", url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXdLEN7aqioXM" },
-  { id: "lofigirl", name: "Lofi Girl Live", url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1" }
+  { 
+    id: "jazz_live", 
+    name: "Rainy Jazz Cafe (Live)", 
+    url: "https://www.youtube-nocookie.com/embed/9oRTEsEpKNM?autoplay=1",
+    subtitle: "24/7 Jazz Piano & Rain"
+  },
+  { 
+    id: "deep_focus", 
+    name: "Deep Focus Ambient", 
+    url: "https://www.youtube-nocookie.com/embed/D715zYn7TzM?autoplay=1",
+    subtitle: "Atmospheric Study Beats"
+  },
+  { 
+    id: "lofigirl", 
+    name: "Lofi Girl Live", 
+    url: "https://www.youtube-nocookie.com/embed/jfKfPfyJRdk?autoplay=1",
+    subtitle: "24/7 Lo-Fi Beats"
+  },
+  { 
+    id: "synth", 
+    name: "Synthwave Beats", 
+    url: "https://open.spotify.com/embed/playlist/37i9dQZF1DXdLEN7aqioXM",
+    subtitle: "Cyberpunk Focus"
+  }
 ];
+
+function convertToEmbedUrl(rawUrl: string): string {
+  let url = rawUrl.trim();
+  if (!url) return "";
+
+  // Spotify links
+  if (url.includes("open.spotify.com") && !url.includes("/embed/")) {
+    return url.replace("open.spotify.com/", "open.spotify.com/embed/");
+  }
+
+  // YouTube /live/
+  if (url.includes("youtube.com/live/")) {
+    const v = url.split("youtube.com/live/")[1]?.split("?")[0]?.split("&")[0];
+    if (v) return `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
+  }
+
+  // YouTube /watch?v=
+  if (url.includes("youtube.com/watch")) {
+    const match = url.match(/[?&]v=([^&#]+)/);
+    if (match && match[1]) {
+      return `https://www.youtube-nocookie.com/embed/${match[1]}?autoplay=1`;
+    }
+  }
+
+  // YouTube youtu.be/
+  if (url.includes("youtu.be/")) {
+    const v = url.split("youtu.be/")[1]?.split("?")[0]?.split("&")[0];
+    if (v) return `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
+  }
+
+  // YouTube /embed/
+  if (url.includes("youtube.com/embed/") || url.includes("youtube-nocookie.com/embed/")) {
+    return url.includes("autoplay=1") ? url : `${url}${url.includes("?") ? "&" : "?"}autoplay=1`;
+  }
+
+  return url;
+}
 
 export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: FocusSanctuaryProps) {
   const { user, userData } = useAuth();
@@ -69,8 +126,8 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
   // Audio system: 'none' | 'rain' | 'brown' | 'green' | 'gamma' | 'alpha' | 'cafe' | 'music_embed'
   const [audioType, setAudioType] = useState<SoundscapeType | "music_embed">("none");
   const [volume, setVolume] = useState<number>(0.5);
-  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("lofi");
-  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://open.spotify.com/embed/playlist/0vvXsWCC9xrXsKd4FyS8kM");
+  const [selectedMusicPreset, setSelectedMusicPreset] = useState<string>("jazz_live");
+  const [customEmbedUrl, setCustomEmbedUrl] = useState<string>("https://www.youtube-nocookie.com/embed/9oRTEsEpKNM?autoplay=1");
   const [isCustomUrlInputOpen, setIsCustomUrlInputOpen] = useState<boolean>(false);
   const [inputUrl, setInputUrl] = useState<string>("");
 
@@ -207,20 +264,7 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     if (!inputUrl.trim()) return;
 
     soundscapeEngine.stop();
-    let url = inputUrl.trim();
-
-    // Convert Spotify track/playlist links to embed format
-    if (url.includes("open.spotify.com") && !url.includes("/embed/")) {
-      url = url.replace("open.spotify.com/", "open.spotify.com/embed/");
-    }
-    // Convert YouTube links to embed format
-    if (url.includes("youtube.com/watch?v=")) {
-      const v = url.split("v=")[1]?.split("&")[0];
-      url = `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
-    } else if (url.includes("youtu.be/")) {
-      const v = url.split("youtu.be/")[1]?.split("?")[0];
-      url = `https://www.youtube-nocookie.com/embed/${v}?autoplay=1`;
-    }
+    const url = convertToEmbedUrl(inputUrl);
 
     setCustomEmbedUrl(url);
     setAudioType("music_embed");
