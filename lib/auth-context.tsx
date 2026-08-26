@@ -58,11 +58,7 @@ export function getDeviceDetails(): { deviceId: string; deviceName: string; devi
 interface AuthContextType {
   user: UserProfile | null;
   isLoading: boolean;
-  userData: {
-    tasks: TaskItem[];
-    exams: ExamItem[];
-    courses: CourseItem[];
-  };
+  userData: UserData;
   signInWithPassword: (email: string, pass: string) => Promise<{ success: boolean; error?: string; emailUnconfirmed?: boolean }>;
   signUpWithPassword: (
     fullName: string, 
