@@ -6,11 +6,19 @@ import { createClient } from "@/lib/supabase/client";
 
 export * from "@/lib/types";
 
+export interface UserData {
+  tasks: TaskItem[];
+  exams: ExamItem[];
+  courses: CourseItem[];
+  documents?: any[];
+}
+
 // Empty clean slate data
-const EMPTY_DATA: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] } = {
+const EMPTY_DATA: UserData = {
   courses: [],
   tasks: [],
-  exams: []
+  exams: [],
+  documents: []
 };
 
 const simulateNetworkLatency = (ms: number = 600) => new Promise(resolve => setTimeout(resolve, ms));
@@ -86,7 +94,7 @@ interface AuthContextType {
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   toggleGoogleCalendarSync: (enabled: boolean) => Promise<boolean>;
   toggleDensityPreference: (density: "comfortable" | "compact") => Promise<boolean>;
-  getUserData: () => { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] };
+  getUserData: () => UserData;
   addTask: (task: Omit<TaskItem, "id" | "userId">) => TaskItem;
   updateTask: (taskId: string, updates: Partial<TaskItem>) => void;
   deleteTask: (taskId: string) => void;
@@ -111,7 +119,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [userData, setUserData] = useState<{ tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] }>(EMPTY_DATA);
+  const [userData, setUserData] = useState<UserData>(EMPTY_DATA);
 
   // Helper to load user's data from localStorage
   const loadUserData = useCallback((userId: string) => {
@@ -154,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   // Helper to persist updated user data across devices with zero-latency local write, debounced cloud sync & offline fallback
-  const persistUserData = useCallback((userId: string, next: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] }) => {
+  const persistUserData = useCallback((userId: string, next: UserData) => {
     // 1. Instant local write (0ms latency for UI interactions)
     setUserData(next);
     const storageKey = `student_portal_user_${userId}_data`;

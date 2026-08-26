@@ -373,8 +373,16 @@ class NaturalSoundscapeEngine {
             osc.connect(noteGain);
             noteGain.connect(jazzMasterGain);
 
-            osc.start(now);
-            osc.stop(now + 4.0);
+            osc.onended = () => {
+              try {
+                osc.disconnect();
+                noteGain.disconnect();
+              } catch {}
+              const oscIdx = this.activeNodes.indexOf(osc);
+              if (oscIdx !== -1) this.activeNodes.splice(oscIdx, 1);
+              const gainIdx = this.activeNodes.indexOf(noteGain);
+              if (gainIdx !== -1) this.activeNodes.splice(gainIdx, 1);
+            };
 
             noteOscillators.push(osc, noteGain);
             this.activeNodes.push(osc, noteGain);
@@ -414,6 +422,18 @@ class NaturalSoundscapeEngine {
           clinkOsc.connect(clinkFilter);
           clinkFilter.connect(clinkGain);
           clinkGain.connect(this.gainNode);
+
+          clinkOsc.onended = () => {
+            try {
+              clinkOsc.disconnect();
+              clinkFilter.disconnect();
+              clinkGain.disconnect();
+            } catch {}
+            [clinkOsc, clinkFilter, clinkGain].forEach(node => {
+              const idx = this.activeNodes.indexOf(node);
+              if (idx !== -1) this.activeNodes.splice(idx, 1);
+            });
+          };
 
           clinkOsc.start(now);
           clinkOsc.stop(now + 0.35);

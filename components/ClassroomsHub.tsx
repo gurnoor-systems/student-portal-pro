@@ -67,7 +67,7 @@ export default function ClassroomsHub() {
     try {
       const raw = localStorage.getItem(`student_portal_user_${user.id}_materials`);
       const localMats: MaterialItem[] = raw ? JSON.parse(raw) : [];
-      const remoteDocs = (userData as any).documents;
+      const remoteDocs = userData.documents;
       if (Array.isArray(remoteDocs) && remoteDocs.length > 0) {
         const map = new Map<string, MaterialItem>();
         localMats.forEach(m => map.set(m.id, m));
@@ -77,7 +77,7 @@ export default function ClassroomsHub() {
         localStorage.setItem(`student_portal_user_${user.id}_materials`, JSON.stringify(merged));
       }
     } catch {}
-  }, [user, (userData as any).documents]);
+  }, [user, userData.documents]);
 
   // Calculate total cloud storage used in MB
   const totalStorageMB = materials.reduce((acc, curr) => {

@@ -186,6 +186,18 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     }
   }, [timerMode, customMinutes, isRunning]);
 
+  // Dismiss Focus Sanctuary on Escape key press
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Timestamp anchor setup when session starts
   useEffect(() => {
     if (isRunning) {
