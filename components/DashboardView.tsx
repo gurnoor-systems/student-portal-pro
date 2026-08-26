@@ -13,6 +13,8 @@ import FocusSanctuary from "@/components/FocusSanctuary";
 import ProfileModal from "@/components/ProfileModal";
 import DailyRoutineView from "@/components/DailyRoutineView";
 import { playSuccessChime } from "@/lib/audio";
+import { fireMilestoneConfetti } from "@/lib/confetti";
+import { useToast } from "@/lib/toast-context";
 import { 
   Plus, 
   Check, 
@@ -59,6 +61,7 @@ interface DashboardViewProps {
 
 export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: DashboardViewProps) {
   const { user, userData, updateTask, toggleDensityPreference } = useAuth();
+  const { showToast } = useToast();
   const [dashboardTab, setDashboardTab] = useState<"summary" | "routine" | "tracker" | "classrooms" | "calendar" | "exams" | "flashcards" | "documents" | "analytics">("summary");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFocusSanctuaryOpen, setIsFocusSanctuaryOpen] = useState(false);
@@ -68,6 +71,22 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
   const [currentTimeFormatted, setCurrentTimeFormatted] = useState("");
   const [currentDateFormatted, setCurrentDateFormatted] = useState("");
   const [isOnline, setIsOnline] = useState(true);
+
+  // Listen for custom events dispatched by Command Palette
+  useEffect(() => {
+    const handleOpenFocus = () => setIsFocusSanctuaryOpen(true);
+    const handleSwitchTab = (e: any) => {
+      if (e.detail) setDashboardTab(e.detail);
+    };
+
+    window.addEventListener("open-focus-sanctuary", handleOpenFocus);
+    window.addEventListener("switch-dashboard-tab", handleSwitchTab);
+
+    return () => {
+      window.removeEventListener("open-focus-sanctuary", handleOpenFocus);
+      window.removeEventListener("switch-dashboard-tab", handleSwitchTab);
+    };
+  }, []);
 
   useEffect(() => {
     if (user?.densityPreference) {
@@ -125,16 +144,23 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
     toggleDensityPreference(next);
   };
 
-  // Handlers for task status
+  // Handlers for task status with Undo Toast
   const handleToggleTask = useCallback((taskId: string) => {
     const target = userData.tasks.find(t => t.id === taskId);
     if (!target) return;
     const nextStatus: "todo" | "in_progress" | "completed" = target.status === "completed" ? "todo" : "completed";
     if (nextStatus === "completed") {
       playSuccessChime();
+      fireMilestoneConfetti("standard");
+      showToast({
+        type: "success",
+        title: "Task Completed",
+        description: `"${target.title}" marked as done.`,
+        undoAction: () => updateTask(taskId, { status: "todo" })
+      });
     }
     updateTask(taskId, { status: nextStatus });
-  }, [userData.tasks, updateTask]);
+  }, [userData.tasks, updateTask, showToast]);
 
   // Metrics computation derived reactively
   const metrics = useMemo(() => {

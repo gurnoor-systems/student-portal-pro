@@ -13,6 +13,7 @@ import AuthModal from "@/components/AuthModal";
 import DashboardView from "@/components/DashboardView";
 import QuickAddTaskModal from "@/components/QuickAddTaskModal";
 import NotificationCenter from "@/components/NotificationCenter";
+import CommandPalette from "@/components/CommandPalette";
 import { useAuth } from "@/lib/auth-context";
 import { Plus } from "lucide-react";
 
@@ -23,6 +24,7 @@ export default function Home() {
   const [isDemoPlayerOpen, setIsDemoPlayerOpen] = useState(false);
   const [isExamsModalOpen, setIsExamsModalOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState<{ isOpen: boolean; tab: "signin" | "signup" }>({
     isOpen: false,
@@ -34,7 +36,7 @@ export default function Home() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setIsQuickAddOpen(prev => !prev);
+        setIsCommandPaletteOpen(prev => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -118,6 +120,22 @@ export default function Home() {
       <NotificationCenter 
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
+      />
+
+      {/* 6. Spotlight Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onOpenQuickAdd={() => setIsQuickAddOpen(true)}
+        onOpenFocusSanctuary={() => {
+          // Focus Sanctuary trigger
+          const event = new CustomEvent("open-focus-sanctuary");
+          window.dispatchEvent(event);
+        }}
+        onSelectTab={(tabId) => {
+          const event = new CustomEvent("switch-dashboard-tab", { detail: tabId });
+          window.dispatchEvent(event);
+        }}
       />
     </main>
   );
