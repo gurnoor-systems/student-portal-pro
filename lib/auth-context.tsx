@@ -128,6 +128,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const syncDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
   // Flush offline pending sync queue to server
   const flushPendingSync = useCallback(async () => {
     if (!user?.email) return;
