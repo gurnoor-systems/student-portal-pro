@@ -11,6 +11,7 @@ import FlashcardsHub from "@/components/FlashcardsHub";
 import CourseDocumentViewer from "@/components/CourseDocumentViewer";
 import FocusSanctuary from "@/components/FocusSanctuary";
 import ProfileModal from "@/components/ProfileModal";
+import DailyRoutineView from "@/components/DailyRoutineView";
 import { playSuccessChime } from "@/lib/audio";
 import { 
   Plus, 
@@ -47,7 +48,8 @@ import {
   Brain,
   FileText,
   AlignJustify,
-  Rows
+  Rows,
+  Target
 } from "lucide-react";
 
 interface DashboardViewProps {
@@ -57,7 +59,7 @@ interface DashboardViewProps {
 
 export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: DashboardViewProps) {
   const { user, userData, updateTask, toggleDensityPreference } = useAuth();
-  const [dashboardTab, setDashboardTab] = useState<"summary" | "tracker" | "classrooms" | "calendar" | "exams" | "flashcards" | "documents" | "analytics">("summary");
+  const [dashboardTab, setDashboardTab] = useState<"summary" | "routine" | "tracker" | "classrooms" | "calendar" | "exams" | "flashcards" | "documents" | "analytics">("summary");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isFocusSanctuaryOpen, setIsFocusSanctuaryOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -159,6 +161,7 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
 
   const navItems = [
     { id: "summary", label: "Today", icon: LayoutDashboard, badge: metrics.urgentCount > 0 ? `${metrics.urgentCount}` : null },
+    { id: "routine", label: "Daily Routine", icon: Target, badge: "Today" },
     { id: "tracker", label: "Tasks", icon: CheckSquare, badge: `${userData.tasks.filter(t => t.status !== "completed").length}` },
     { id: "classrooms", label: "Classes & Links", icon: Users, badge: `${metrics.activeClasses}` },
     { id: "calendar", label: "Calendar", icon: CalendarIcon, badge: user?.googleCalendarSynced ? "Sync" : null },
@@ -557,6 +560,13 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
 
             </div>
           </div>
+        )}
+
+        {dashboardTab === "routine" && (
+          <DailyRoutineView 
+            onOpenFocusSanctuary={() => setIsFocusSanctuaryOpen(true)}
+            onOpenQuickAdd={onOpenQuickAdd}
+          />
         )}
 
         {dashboardTab === "tracker" && (
