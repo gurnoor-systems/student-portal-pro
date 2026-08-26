@@ -793,8 +793,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
-    // 9. SYNC USER DATA (Cross-device tasks, exams, documents)
-    if (action === "sync-data") {
+    // 9. SYNC USER DATA (Cross-device tasks, exams, documents with ID-based Conflict Resolution)
+    if (action === "sync-data" || action === "sync") {
       const { email, userData } = body;
       if (!email || !userData) {
         return NextResponse.json({ error: "Missing sync payload" }, { status: 400 });
@@ -812,16 +812,48 @@ export async function POST(req: NextRequest) {
       }
 
       if (account) {
-        account.courses = userData.courses || account.courses;
-        account.tasks = userData.tasks || account.tasks;
-        account.exams = userData.exams || account.exams;
-        account.documents = userData.documents || account.documents;
+        // Intelligent ID-based merge for tasks (prevents multi-device overwrite race)
+        if (Array.isArray(userData.tasks)) {
+          const taskMap = new Map<string, any>();
+          (account.tasks || []).forEach((t: any) => { if (t?.id) taskMap.set(t.id, t); });
+          userData.tasks.forEach((t: any) => { if (t?.id) taskMap.set(t.id, t); });
+          account.tasks = Array.from(taskMap.values());
+        }
+
+        // Intelligent ID-based merge for exams
+        if (Array.isArray(userData.exams)) {
+          const examMap = new Map<string, any>();
+          (account.exams || []).forEach((e: any) => { if (e?.id) examMap.set(e.id, e); });
+          userData.exams.forEach((e: any) => { if (e?.id) examMap.set(e.id, e); });
+          account.exams = Array.from(examMap.values());
+        }
+
+        // Intelligent ID-based merge for course documents & materials
+        if (Array.isArray(userData.documents)) {
+          const docMap = new Map<string, any>();
+          (account.documents || []).forEach((d: any) => { if (d?.id) docMap.set(d.id, d); });
+          userData.documents.forEach((d: any) => { if (d?.id) docMap.set(d.id, d); });
+          account.documents = Array.from(docMap.values());
+        }
+
+        if (Array.isArray(userData.courses) && userData.courses.length > 0) {
+          account.courses = userData.courses;
+        }
+
         accountsStore.set(trimmedEmail, account);
         syncToDisk();
         await saveAccountToSupabase(account);
       }
 
-      return NextResponse.json({ success: true });
+      return NextResponse.json({ 
+        success: true, 
+        userData: {
+          courses: account?.courses || [],
+          tasks: account?.tasks || [],
+          exams: account?.exams || [],
+          documents: account?.documents || []
+        }
+      });
     }
 
     // 10. DELETE ACCOUNT (Permanently purge from memory, disk database, and Supabase Cloud)

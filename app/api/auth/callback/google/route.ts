@@ -38,8 +38,8 @@ export async function GET(request: Request) {
     const tokenData = await tokenRes.json();
 
     if (tokenData.access_token) {
-      // Redirect to home dashboard with success flag
-      return NextResponse.redirect(`${origin}/?google_auth=success&token=${encodeURIComponent(tokenData.access_token)}`);
+      const refreshParam = tokenData.refresh_token ? `&refresh_token=${encodeURIComponent(tokenData.refresh_token)}` : "";
+      return NextResponse.redirect(`${origin}/?google_auth=success&token=${encodeURIComponent(tokenData.access_token)}${refreshParam}`);
     }
 
     return NextResponse.redirect(`${origin}/?google_auth=success`);

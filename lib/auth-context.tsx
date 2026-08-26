@@ -128,9 +128,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const syncDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  // Flush offline pending sync queue to server
+  const flushPendingSync = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const pendingRaw = localStorage.getItem(`student_portal_pending_sync_${user.id}`);
+      if (pendingRaw) {
+        const pendingData = JSON.parse(pendingRaw);
+        const res = await fetch("/api/auth/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sync-data",
+            email: user.email,
+            userData: pendingData
+          })
+        });
+        if (res.ok) {
+          localStorage.removeItem(`student_portal_pending_sync_${user.id}`);
+        }
+      }
+    } catch {}
+  }, [user]);
 
-  // Helper to persist updated user data across devices with zero-latency local write & debounced cloud sync
+  // Helper to persist updated user data across devices with zero-latency local write, debounced cloud sync & offline fallback
   const persistUserData = useCallback((userId: string, next: { tasks: TaskItem[]; exams: ExamItem[]; courses: CourseItem[] }) => {
     // 1. Instant local write (0ms latency for UI interactions)
     setUserData(next);
@@ -141,14 +162,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.error("Failed to persist user data:", e);
     }
 
-    // 2. Debounced Cloud Sync (300ms) to coalesce rapid toggles into a single atomic write
+    // 2. Debounced Cloud Sync (300ms) with offline queueing
     if (user?.email) {
       if (syncDebounceRef.current) {
         clearTimeout(syncDebounceRef.current);
       }
-      syncDebounceRef.current = setTimeout(() => {
+      syncDebounceRef.current = setTimeout(async () => {
         try {
-          fetch("/api/auth/sync", {
+          const res = await fetch("/api/auth/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -156,9 +177,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: user.email,
               userData: next
             })
-          }).catch(() => {});
+          });
+          if (!res.ok) {
+            localStorage.setItem(`student_portal_pending_sync_${userId}`, JSON.stringify(next));
+          } else {
+            localStorage.removeItem(`student_portal_pending_sync_${userId}`);
+          }
         } catch {
-          // ignore
+          // Network dropped / offline: Queue mutation for next online event
+          localStorage.setItem(`student_portal_pending_sync_${userId}`, JSON.stringify(next));
         }
       }, 300);
     }
@@ -1236,6 +1263,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn("Multi-device sync fetch error:", err);
     }
   }, [user]);
+
+  // Auto-sync on online reconnection and visibility change (device wake / tab focus)
+  useEffect(() => {
+    if (!user) return;
+
+    const handleOnlineOrWake = () => {
+      flushPendingSync();
+      refreshMultiDeviceSync();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        flushPendingSync();
+        refreshMultiDeviceSync();
+      }
+    };
+
+    window.addEventListener("online", handleOnlineOrWake);
+    window.addEventListener("focus", handleOnlineOrWake);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("online", handleOnlineOrWake);
+      window.removeEventListener("focus", handleOnlineOrWake);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [user, flushPendingSync, refreshMultiDeviceSync]);
 
   // Revoke a specific remote device
   const revokeDeviceSession = useCallback(async (deviceIdToRevoke: string): Promise<boolean> => {
