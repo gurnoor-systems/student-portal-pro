@@ -89,13 +89,14 @@ export default function AcademicAIAgent({
         const payload = action.payload;
         const newTask: TaskItem = {
           id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          userId: user?.id || "local_user",
           title: payload.title || "New Task",
           courseCode: payload.courseCode || (userData.courses[0]?.courseCode || "GEN-101"),
           dueDate: payload.dueDate || new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
           priority: payload.priority || "medium",
           status: "todo",
-          estimatedHours: payload.estimatedHours || 2,
-          description: payload.description || "Added by AI Copilot"
+          category: payload.category || "Assignment",
+          syncedToCalendar: false
         };
         addTask(newTask);
         fireMilestoneConfetti("standard");
