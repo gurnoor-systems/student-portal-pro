@@ -30,6 +30,7 @@ interface NavbarProps {
   onOpenExams: () => void;
   onOpenAuth: (tab?: "signin" | "signup") => void;
   onOpenNotifications: () => void;
+  onOpenAIAgent?: () => void;
   unreadNotificationsCount?: number;
 }
 
@@ -38,6 +39,7 @@ export default function Navbar({
   onOpenExams, 
   onOpenAuth, 
   onOpenNotifications,
+  onOpenAIAgent,
   unreadNotificationsCount = 2 
 }: NavbarProps) {
   const { theme, toggleTheme } = useTheme();
@@ -68,12 +70,8 @@ export default function Navbar({
                 <div className="flex items-center gap-2.5 flex-shrink-0">
                   <Logo size={28} variant="gold" />
                   <div className="flex flex-col text-left">
-                    <span className="font-bold text-xs sm:text-sm tracking-widest uppercase text-[var(--nav-ink)] font-display">
-                      STUDENT PORTAL
-                    </span>
-                    <span className="text-[8px] font-mono tracking-[2px] uppercase text-[var(--primary)] font-bold">
-                      PRO WORKSPACE
-                    </span>
+                    <span className="font-extrabold text-sm tracking-tight text-[var(--nav-ink)] leading-none">STUDENT PORTAL</span>
+                    <span className="text-[9px] font-mono tracking-widest text-[#d4af37] uppercase font-bold leading-none mt-0.5">ACADEMIC PRO</span>
                   </div>
                 </div>
 
@@ -93,8 +91,8 @@ export default function Navbar({
                 </button>
               </div>
 
-              {/* Center/Right: University Chip + Notifications + Theme + Profile Menu */}
-              <div className="flex items-center gap-2.5 sm:gap-3">
+              {/* Center/Right: University Chip + AI Copilot + Notifications + Theme + Profile Menu */}
+              <div className="flex items-center gap-2 sm:gap-3">
                 
                 {/* Active Campus / Term Tag */}
                 <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-lg text-xs font-mono">
@@ -103,6 +101,19 @@ export default function Navbar({
                   <span className="text-[var(--muted)]">•</span>
                   <span className="text-[var(--primary)] font-bold">{user.semester}</span>
                 </div>
+
+                {/* AI Copilot Trigger */}
+                {onOpenAIAgent && (
+                  <button
+                    onClick={onOpenAIAgent}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[var(--primary)]/15 via-blue-500/10 to-indigo-500/15 hover:from-[var(--primary)] hover:to-blue-600 text-[var(--primary)] hover:text-white border border-[var(--primary)]/30 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer group"
+                    title="Open Academic AI Copilot (Cmd+J / Ctrl+J)"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[var(--primary)] group-hover:text-white animate-pulse" />
+                    <span className="hidden sm:inline">AI Copilot</span>
+                    <span className="hidden xl:inline text-[9px] font-mono opacity-60">Cmd+J</span>
+                  </button>
+                )}
 
                 {/* Notification Bell */}
                 <button

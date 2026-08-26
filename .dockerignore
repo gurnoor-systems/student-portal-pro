@@ -1,7 +1,0 @@
-node_modules
-.next
-.git
-.vscode
-*.log
-.env*.local
-scratch

@@ -28,6 +28,7 @@ interface CommandPaletteProps {
   onClose: () => void;
   onOpenQuickAdd: () => void;
   onOpenFocusSanctuary: () => void;
+  onOpenAIAgent?: () => void;
   onSelectTab: (tabId: string) => void;
 }
 
@@ -45,6 +46,7 @@ export default function CommandPalette({
   onClose,
   onOpenQuickAdd,
   onOpenFocusSanctuary,
+  onOpenAIAgent,
   onSelectTab
 }: CommandPaletteProps) {
   const { userData } = useAuth();
@@ -65,6 +67,17 @@ export default function CommandPalette({
   // Base System Commands
   const systemCommands: CommandItem[] = useMemo(() => {
     return [
+      {
+        id: "cmd_ai_copilot",
+        category: "Actions",
+        title: "Ask Academic AI Copilot",
+        subtitle: "Schedule study blocks, answer questions & take actions (Cmd+J)",
+        icon: Sparkles,
+        action: () => {
+          onClose();
+          onOpenAIAgent?.();
+        }
+      },
       {
         id: "cmd_quick_add",
         category: "Actions",

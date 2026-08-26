@@ -14,6 +14,7 @@ import DashboardView from "@/components/DashboardView";
 import QuickAddTaskModal from "@/components/QuickAddTaskModal";
 import NotificationCenter from "@/components/NotificationCenter";
 import CommandPalette from "@/components/CommandPalette";
+import AcademicAIAgent from "@/components/AcademicAIAgent";
 import { useAuth } from "@/lib/auth-context";
 import { Plus } from "lucide-react";
 
@@ -25,18 +26,23 @@ export default function Home() {
   const [isExamsModalOpen, setIsExamsModalOpen] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isAIAgentOpen, setIsAIAgentOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState<{ isOpen: boolean; tab: "signin" | "signup" }>({
     isOpen: false,
     tab: "signin"
   });
 
-  // Global keyboard shortcut Ctrl+K / Cmd+K
+  // Global keyboard shortcuts: Cmd+K (Command Palette), Cmd+J (AI Copilot)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setIsCommandPaletteOpen(prev => !prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
+        e.preventDefault();
+        setIsAIAgentOpen(prev => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -55,6 +61,7 @@ export default function Home() {
         onOpenExams={() => setIsExamsModalOpen(true)}
         onOpenAuth={handleOpenAuth}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
+        onOpenAIAgent={() => setIsAIAgentOpen(true)}
       />
 
       {/* Main View Display: Direct Workspace Focus when signed in */}
@@ -129,6 +136,21 @@ export default function Home() {
         onOpenQuickAdd={() => setIsQuickAddOpen(true)}
         onOpenFocusSanctuary={() => {
           // Focus Sanctuary trigger
+          const event = new CustomEvent("open-focus-sanctuary");
+          window.dispatchEvent(event);
+        }}
+        onOpenAIAgent={() => setIsAIAgentOpen(true)}
+        onSelectTab={(tabId) => {
+          const event = new CustomEvent("switch-dashboard-tab", { detail: tabId });
+          window.dispatchEvent(event);
+        }}
+      />
+
+      {/* 7. Academic AI Copilot Agent (Cmd+J / Ctrl+J) */}
+      <AcademicAIAgent
+        isOpen={isAIAgentOpen}
+        onClose={() => setIsAIAgentOpen(false)}
+        onOpenFocusSanctuary={() => {
           const event = new CustomEvent("open-focus-sanctuary");
           window.dispatchEvent(event);
         }}
