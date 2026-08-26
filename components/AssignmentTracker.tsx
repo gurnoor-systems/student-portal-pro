@@ -3,6 +3,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { useAuth, TaskItem } from "@/lib/auth-context";
 import { playSuccessChime } from "@/lib/audio";
+import { fireMilestoneConfetti } from "@/lib/confetti";
 import { 
   Kanban, 
   Table, 
@@ -38,6 +39,7 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
     updateTask(taskId, { status: newStatus });
     if (newStatus === "completed") {
       playSuccessChime();
+      fireMilestoneConfetti("standard");
     }
   }, [updateTask]);
 

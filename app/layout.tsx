@@ -10,6 +10,12 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Student Portal Pro | Academic & Personal Command Center",
   description: "Unified academic management platform with 2-click task capture, native Google Classroom sync, AI study plan breakdown, and chronologically sorted exam schedules.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "StudentPortal"
+  },
   openGraph: {
     title: "Student Portal Pro",
     description: "Your Academic & Personal Command Center, Unified.",
@@ -25,6 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#070b10" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -37,6 +46,12 @@ export default function RootLayout({
                   document.documentElement.classList.add("dark");
                 }
               } catch (e) {}
+
+              if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function() {});
+                });
+              }
             `
           }}
         />

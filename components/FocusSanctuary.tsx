@@ -8,6 +8,7 @@ import {
   SoundscapeType, 
   SOUNDSCAPE_OPTIONS 
 } from "@/lib/soundscapes";
+import { fireMilestoneConfetti } from "@/lib/confetti";
 import Logo from "@/components/Logo";
 import { 
   X, 
@@ -241,6 +242,7 @@ export default function FocusSanctuary({ isOpen, onClose, onTaskCompleted }: Foc
     setIsRunning(false);
     soundscapeEngine.stop();
     soundscapeEngine.playCompletionChime(); // Play soothing 528Hz crystal bell chime
+    fireMilestoneConfetti("streak");
 
     const elapsed = timerMode === "flowtime" 
       ? Math.max(1, Math.round(flowtimeSeconds / 60))
