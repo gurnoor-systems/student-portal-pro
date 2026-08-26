@@ -74,7 +74,10 @@ export async function sendPasswordResetEmail(
         auth: {
           user: smtpEmail.trim(),
           pass: smtpPass.trim()
-        }
+        },
+        connectionTimeout: 4000,
+        greetingTimeout: 4000,
+        socketTimeout: 6000
       });
 
       const info = await transporter.sendMail({

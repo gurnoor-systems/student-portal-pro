@@ -56,7 +56,8 @@ async function getAccountFromSupabase(email: string): Promise<StoredAccount | un
         courses: Array.isArray(data.courses_json) ? data.courses_json : [],
         tasks: Array.isArray(data.tasks_json) ? data.tasks_json : [],
         exams: Array.isArray(data.exams_json) ? data.exams_json : [],
-        documents: Array.isArray(data.documents_json) ? data.documents_json : []
+        documents: Array.isArray(data.documents_json) ? data.documents_json : [],
+        resetPin: data.reset_pin_json || undefined
       };
     }
   } catch (err) {
@@ -86,6 +87,7 @@ async function saveAccountToSupabase(acc: StoredAccount): Promise<void> {
       tasks_json: acc.tasks || [],
       exams_json: acc.exams || [],
       documents_json: acc.documents || [],
+      reset_pin_json: acc.resetPin || null,
       updated_at: new Date().toISOString()
     }, { onConflict: "email" });
   } catch (err) {
@@ -111,6 +113,7 @@ interface StoredAccount {
   tasks?: any[];
   exams?: any[];
   documents?: any[];
+  resetPin?: ResetPinRecord;
 }
 
 interface ResetPinRecord {
@@ -718,8 +721,10 @@ export async function POST(req: NextRequest) {
         failedAttempts: 0
       };
 
+      account.resetPin = pinRecord;
       pinsStore.set(trimmedEmail, pinRecord);
       syncToDisk();
+      await saveAccountToSupabase(account);
 
       const studentName = account.fullName || "Student";
 
@@ -734,7 +739,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 8. RESET PASSWORD WITH PIN (Includes 5-Attempt Lockout)
+    // 8. RESET PASSWORD WITH PIN (Includes Serverless Cross-Instance Sync & 5-Attempt Lockout)
     if (action === "reset-password") {
       const { email, code, newPassword } = body;
       if (!email || !code || !newPassword) {
@@ -742,11 +747,18 @@ export async function POST(req: NextRequest) {
       }
 
       const trimmedEmail = email.trim().toLowerCase();
-      let pinRecord = pinsStore.get(trimmedEmail);
+      let pinRecord = pinsStore.get(trimmedEmail) || readDiskDB().pins[trimmedEmail];
+      let account: StoredAccount | undefined = accountsStore.get(trimmedEmail) || readDiskDB().accounts[trimmedEmail];
 
-      if (!pinRecord) {
-        const disk = readDiskDB();
-        pinRecord = disk.pins[trimmedEmail];
+      // If not in local serverless memory/disk, pull from Supabase PostgreSQL
+      if (!pinRecord || !account) {
+        const supaAccount = await getAccountFromSupabase(trimmedEmail);
+        if (supaAccount) {
+          account = supaAccount;
+          if (supaAccount.resetPin) {
+            pinRecord = supaAccount.resetPin;
+          }
+        }
       }
 
       if (!pinRecord || Date.now() > pinRecord.expiresAt) {
@@ -757,10 +769,18 @@ export async function POST(req: NextRequest) {
       if (pinRecord.code !== code.trim()) {
         pinRecord.failedAttempts = (pinRecord.failedAttempts || 0) + 1;
         pinsStore.set(trimmedEmail, pinRecord);
+        if (account) {
+          account.resetPin = pinRecord;
+          await saveAccountToSupabase(account);
+        }
         syncToDisk();
 
         if (pinRecord.failedAttempts >= 5) {
           pinsStore.delete(trimmedEmail);
+          if (account) {
+            delete account.resetPin;
+            await saveAccountToSupabase(account);
+          }
           syncToDisk();
           return NextResponse.json({ 
             error: "Security Alert: Too many incorrect PIN attempts. This recovery code has been invalidated. Please request a new code." 
@@ -772,17 +792,9 @@ export async function POST(req: NextRequest) {
         }, { status: 400 });
       }
 
-      let account = accountsStore.get(trimmedEmail);
-      if (!account) {
-        const disk = readDiskDB();
-        account = disk.accounts[trimmedEmail];
-      }
-      if (!account) {
-        account = await getAccountFromSupabase(trimmedEmail);
-      }
-
       if (account) {
         account.passwordHash = hashPassword(newPassword);
+        delete account.resetPin;
         accountsStore.set(trimmedEmail, account);
         await saveAccountToSupabase(account);
       }
