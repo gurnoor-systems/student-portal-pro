@@ -1,19 +1,8 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseClient } from "@/lib/supabase-client";
 import fs from "fs";
 import path from "path";
 import os from "os";
-
-function getSupabaseClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) return null;
-  try {
-    return createClient(url, key, { auth: { persistSession: false } });
-  } catch {
-    return null;
-  }
-}
 
 function getDiskAccount(identifier: string) {
   try {
