@@ -27,15 +27,17 @@ import {
   Coffee
 } from "lucide-react";
 
+interface AgentActionItem {
+  type: "CREATE_TASK" | "SCHEDULE_ROUTINE" | "START_FOCUS" | "COMPLETE_TASK" | "NAVIGATE_TAB";
+  payload: Record<string, any>;
+  summary: string;
+}
+
 interface AgentMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  actions?: Array<{
-    type: "CREATE_TASK" | "SCHEDULE_ROUTINE" | "START_FOCUS" | "COMPLETE_TASK" | "NAVIGATE_TAB";
-    payload: Record<string, any>;
-    summary: string;
-  }>;
+  actions?: AgentActionItem[];
   timestamp: string;
 }
 
@@ -81,7 +83,7 @@ export default function AcademicAIAgent({
   }, [isOpen]);
 
   // Execute in-app actions returned by the AI agent
-  const executeAgentAction = (action: AgentMessage["actions"] extends Array<infer T> ? T : never) => {
+  const executeAgentAction = (action: AgentActionItem) => {
     try {
       if (action.type === "CREATE_TASK") {
         const payload = action.payload;
