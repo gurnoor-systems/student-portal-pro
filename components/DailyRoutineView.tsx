@@ -57,8 +57,24 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
   const [newTitle, setNewTitle] = useState("");
   const [newCategory, setNewCategory] = useState<"morning" | "focus" | "evening" | "custom">("focus");
   const [newStartTime, setNewStartTime] = useState("14:00");
-  const [newDuration, setNewDuration] = useState(45);
+  const [newEndTime, setNewEndTime] = useState("15:30");
   const [newNotes, setNewNotes] = useState("");
+
+  const calculatedDuration = useMemo(() => {
+    const [h1, m1] = newStartTime.split(":").map(Number);
+    const [h2, m2] = newEndTime.split(":").map(Number);
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff <= 0) diff += 24 * 60; // Handle rollover
+    return diff;
+  }, [newStartTime, newEndTime]);
+
+  const handleSetPresetDuration = (mins: number) => {
+    const [h, m] = newStartTime.split(":").map(Number);
+    const totalMins = (h * 60 + m + mins) % (24 * 60);
+    const newH = Math.floor(totalMins / 60);
+    const newM = totalMins % 60;
+    setNewEndTime(`${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`);
+  };
 
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -76,7 +92,7 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
         id: "rt_morning",
         title: "Morning Academic Kickoff & Priority Alignment",
         category: "morning",
-        timeSlot: "08:00 AM - 08:30 AM",
+        timeSlot: "08:00 AM - 08:30 AM (30 min)",
         startHour: 8,
         startMinute: 0,
         durationMinutes: 30,
@@ -87,7 +103,7 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
         id: "rt_focus_1",
         title: "Deep Work Block • High-Priority Assignment",
         category: "focus",
-        timeSlot: "10:30 AM - 12:00 PM",
+        timeSlot: "10:30 AM - 12:00 PM (90 min)",
         startHour: 10,
         startMinute: 30,
         durationMinutes: 90,
@@ -98,7 +114,7 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
         id: "rt_focus_2",
         title: "Afternoon Revision & Lecture Catch-up",
         category: "focus",
-        timeSlot: "03:00 PM - 04:30 PM",
+        timeSlot: "03:00 PM - 04:30 PM (90 min)",
         startHour: 15,
         startMinute: 0,
         durationMinutes: 90,
@@ -109,7 +125,7 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
         id: "rt_evening",
         title: "Evening Wind-Down & Tomorrow's Preparation",
         category: "evening",
-        timeSlot: "09:00 PM - 09:30 PM",
+        timeSlot: "09:00 PM - 09:30 PM (30 min)",
         startHour: 21,
         startMinute: 0,
         durationMinutes: 30,
@@ -170,27 +186,35 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
     }
   };
 
-  // Add custom routine
+  // Add custom routine with directly chosen End Time
   const handleAddRoutine = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
-    const [hStr, mStr] = newStartTime.split(":");
-    const h = parseInt(hStr, 10) || 12;
-    const m = parseInt(mStr, 10) || 0;
+    const [h1Str, m1Str] = newStartTime.split(":");
+    const h1 = parseInt(h1Str, 10) || 12;
+    const m1 = parseInt(m1Str, 10) || 0;
 
-    const period = h >= 12 ? "PM" : "AM";
-    const displayH = h % 12 || 12;
-    const timeSlotStr = `${String(displayH).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+    const [h2Str, m2Str] = newEndTime.split(":");
+    const h2 = parseInt(h2Str, 10) || 13;
+    const m2 = parseInt(m2Str, 10) || 0;
+
+    const format12 = (h: number, m: number) => {
+      const period = h >= 12 ? "PM" : "AM";
+      const displayH = h % 12 || 12;
+      return `${String(displayH).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+    };
+
+    const timeSlotStr = `${format12(h1, m1)} - ${format12(h2, m2)}`;
 
     const newBlock: RoutineItem = {
       id: `rt_custom_${Date.now()}`,
       title: newTitle.trim(),
       category: newCategory,
-      timeSlot: `${timeSlotStr} (${newDuration} min)`,
-      startHour: h,
-      startMinute: m,
-      durationMinutes: newDuration,
+      timeSlot: `${timeSlotStr} (${calculatedDuration} min)`,
+      startHour: h1,
+      startMinute: m1,
+      durationMinutes: calculatedDuration,
       completed: false,
       notes: newNotes.trim() || undefined
     };
@@ -473,23 +497,43 @@ export default function DailyRoutineView({ onOpenFocusSanctuary, onOpenQuickAdd 
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] block mb-1.5">
-                    Duration (Minutes)
+                  <label className="text-xs font-bold uppercase tracking-wider text-[var(--muted)] block mb-1.5 flex items-center justify-between">
+                    <span>End Time</span>
+                    <span className="text-[10px] font-mono text-[var(--primary)] font-bold">
+                      {calculatedDuration} min
+                    </span>
                   </label>
-                  <select
-                    value={newDuration}
-                    onChange={e => setNewDuration(parseInt(e.target.value, 10))}
+                  <input
+                    type="time"
+                    required
+                    value={newEndTime}
+                    onChange={e => setNewEndTime(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-[var(--canvas)] border border-[var(--hairline)] rounded-xl text-sm text-[var(--ink)] focus:outline-none focus:border-[var(--primary)]"
-                  >
-                    <option value={15}>15 Minutes</option>
-                    <option value={25}>25 Min (Pomodoro)</option>
-                    <option value={30}>30 Minutes</option>
-                    <option value={45}>45 Minutes</option>
-                    <option value={60}>1 Hour</option>
-                    <option value={90}>1.5 Hours</option>
-                    <option value={120}>2 Hours</option>
-                  </select>
+                  />
                 </div>
+              </div>
+
+              {/* Quick Duration Preset Chips */}
+              <div className="flex items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] uppercase font-mono font-bold text-[var(--muted)] mr-1">
+                  Quick:
+                </span>
+                {[
+                  { label: "+25m", mins: 25 },
+                  { label: "+45m", mins: 45 },
+                  { label: "+1h", mins: 60 },
+                  { label: "+1.5h", mins: 90 },
+                  { label: "+2h", mins: 120 }
+                ].map(p => (
+                  <button
+                    key={p.label}
+                    type="button"
+                    onClick={() => handleSetPresetDuration(p.mins)}
+                    className="px-2 py-1 bg-[var(--canvas)] hover:bg-[var(--surface-soft)] text-[10px] font-mono font-bold text-[var(--muted)] hover:text-[var(--primary)] border border-[var(--hairline)] hover:border-[var(--primary)] rounded-lg transition-all cursor-pointer"
+                  >
+                    {p.label}
+                  </button>
+                ))}
               </div>
 
               <div>
