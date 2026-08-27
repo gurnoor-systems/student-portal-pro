@@ -27,13 +27,14 @@ export default function Home() {
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isAIAgentOpen, setIsAIAgentOpen] = useState(false);
+  const [agentInitialPrompt, setAgentInitialPrompt] = useState<string>("");
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState<{ isOpen: boolean; tab: "signin" | "signup" }>({
     isOpen: false,
     tab: "signin"
   });
 
-  // Global keyboard shortcuts: Cmd+K (Command Palette), Cmd+J (AI Copilot)
+  // Global keyboard shortcuts & custom event listeners
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
@@ -42,11 +43,32 @@ export default function Home() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "j") {
         e.preventDefault();
+        setAgentInitialPrompt("");
         setIsAIAgentOpen(prev => !prev);
       }
     };
+
+    const handleOpenAgent = () => {
+      setAgentInitialPrompt("");
+      setIsAIAgentOpen(true);
+    };
+
+    const handleOpenWithPrompt = (e: any) => {
+      if (e.detail) {
+        setAgentInitialPrompt(e.detail);
+      }
+      setIsAIAgentOpen(true);
+    };
+
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("open-ai-agent", handleOpenAgent);
+    window.addEventListener("open-ai-agent-with-prompt", handleOpenWithPrompt);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("open-ai-agent", handleOpenAgent);
+      window.removeEventListener("open-ai-agent-with-prompt", handleOpenWithPrompt);
+    };
   }, []);
 
   const handleOpenAuth = (tab: "signin" | "signup" = "signin") => {
@@ -150,6 +172,7 @@ export default function Home() {
       <AcademicAIAgent
         isOpen={isAIAgentOpen}
         onClose={() => setIsAIAgentOpen(false)}
+        initialPrompt={agentInitialPrompt}
         onOpenFocusSanctuary={() => {
           const event = new CustomEvent("open-focus-sanctuary");
           window.dispatchEvent(event);

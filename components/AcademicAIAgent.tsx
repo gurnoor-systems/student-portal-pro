@@ -46,13 +46,15 @@ interface AcademicAIAgentProps {
   onClose: () => void;
   onOpenFocusSanctuary: () => void;
   onSelectTab: (tabId: string) => void;
+  initialPrompt?: string;
 }
 
 export default function AcademicAIAgent({
   isOpen,
   onClose,
   onOpenFocusSanctuary,
-  onSelectTab
+  onSelectTab,
+  initialPrompt
 }: AcademicAIAgentProps) {
   const { user, userData, addTask, updateTask } = useAuth();
   const { showToast } = useToast();
@@ -75,12 +77,16 @@ export default function AcademicAIAgent({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
-  // Focus input when opened
+  // Focus input or auto-send initialPrompt when opened
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 100);
+      if (initialPrompt && initialPrompt.trim()) {
+        handleSendMessage(initialPrompt);
+      } else {
+        setTimeout(() => inputRef.current?.focus(), 100);
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, initialPrompt]);
 
   // Execute in-app actions returned by the AI agent
   const executeAgentAction = (action: AgentActionItem) => {
