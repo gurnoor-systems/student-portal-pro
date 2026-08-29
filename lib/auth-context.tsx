@@ -5,6 +5,7 @@ import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount, Passkey
 import { createClient } from "@/lib/supabase/client";
 import { PasskeyService } from "@/lib/passkey-service";
 import { LWWMergeEngine } from "@/lib/services/lww-merge-engine";
+import { SyncService } from "@/lib/services/sync-service";
 
 export * from "@/lib/types";
 
