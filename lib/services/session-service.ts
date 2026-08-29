@@ -77,9 +77,9 @@ export class SessionService {
         // Schema upgrade backfill
         return {
           ...parsed,
-          university: parsed.university || "University of Waterloo",
+          university: parsed.university || "University of Delhi",
           degree: parsed.degree || "B.Tech (Bachelor of Technology)",
-          semester: parsed.semester || "Fall 2026",
+          semester: parsed.semester || "Semester 1",
           major: parsed.major || "Computer Science",
           densityPreference: parsed.densityPreference || "comfortable",
           googleCalendarSynced: parsed.googleCalendarSynced ?? true,

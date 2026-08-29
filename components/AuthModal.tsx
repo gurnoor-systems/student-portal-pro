@@ -21,7 +21,9 @@ import {
   Eye,
   EyeOff,
   Lock,
-  RotateCcw
+  RotateCcw,
+  Plus,
+  Trash2
 } from "lucide-react";
 
 interface AuthModalProps {
@@ -31,9 +33,10 @@ interface AuthModalProps {
 }
 
 const POPULAR_UNIVERSITIES = [
+  "University of Delhi",
+  "IIT Delhi",
   "University of Waterloo",
   "University of Toronto",
-  "Indian Institute of Technology (IIT)",
   "Stanford University",
   "MIT",
   "Harvard University",
@@ -43,23 +46,24 @@ const POPULAR_UNIVERSITIES = [
 ];
 
 const SUGGESTED_SEMESTERS = [
-  "Fall 2026",
-  "Winter 2027",
-  "Spring 2026",
   "Semester 1",
   "Semester 2",
   "Semester 3",
   "Semester 4",
-  "Term 2A",
-  "Term 3B"
+  "Semester 5",
+  "Semester 6",
+  "Semester 7",
+  "Semester 8",
+  "Fall 2026",
+  "Winter 2027"
 ];
 
 const SUGGESTED_COURSES = [
-  "CS 341 - Algorithms & Complexity",
-  "CS 350 - Operating Systems",
-  "MATH 201 - Linear Algebra",
-  "BIO 110 - Cell Biology",
-  "PHYS 202 - Electricity & Magnetism",
+  "CS 101 - Introduction to Programming",
+  "MATH 101 - Calculus & Linear Algebra",
+  "ENG 101 - Technical Communication",
+  "PHYS 101 - Applied Physics",
+  "DATA 101 - Introduction to Data Science",
   "ECON 101 - Microeconomics"
 ];
 
@@ -100,15 +104,16 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [fullName, setFullName] = useState("");
 
   // Campus, Degree & Semester States
-  const [university, setUniversity] = useState("University of Waterloo");
+  const [university, setUniversity] = useState("University of Delhi");
   const [degree, setDegree] = useState("B.Tech (Bachelor of Technology)");
   const [customDegreeText, setCustomDegreeText] = useState("");
-  const [semester, setSemester] = useState("Fall 2026");
+  const [semester, setSemester] = useState("Semester 1");
   const [major, setMajor] = useState("Computer Science");
   const [selectedCourses, setSelectedCourses] = useState<string[]>([
-    "CS 341 - Algorithms & Complexity",
-    "CS 350 - Operating Systems"
+    "CS 101 - Introduction to Programming",
+    "MATH 101 - Calculus & Linear Algebra"
   ]);
+  const [customCourseInput, setCustomCourseInput] = useState("");
   const [syncGoogleCalendar, setSyncGoogleCalendar] = useState(true);
 
   // Email confirmation state
@@ -138,9 +143,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const [googlePassword, setGooglePassword] = useState("");
   const [googleConfirmPassword, setGoogleConfirmPassword] = useState("");
   const [showGooglePassword, setShowGooglePassword] = useState(false);
-  const [googleUni, setGoogleUni] = useState("University of Waterloo");
+  const [googleUni, setGoogleUni] = useState("University of Delhi");
   const [googleDegree, setGoogleDegree] = useState("B.Tech (Bachelor of Technology)");
-  const [googleSemester, setGoogleSemester] = useState("Fall 2026");
+  const [googleSemester, setGoogleSemester] = useState("Semester 1");
 
   // Forgot Password / OTP Flow States
   const [forgotStep, setForgotStep] = useState<1 | 2>(1);
@@ -163,7 +168,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const handleForgotPasswordClick = () => {
     const trimmed = (email || "").trim();
     if (!trimmed || !isValidStudentEmail(trimmed)) {
-      setError("Please enter your complete student email address (e.g. student@uwaterloo.ca or name@gmail.com) first.");
+      setError("Please enter your complete email address (e.g. student@du.ac.in or name@gmail.com) first.");
       setTimeout(() => {
         emailInputRef.current?.focus();
       }, 50);
@@ -189,7 +194,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     if (res.success) {
       onClose();
     } else {
-      setError(res.error || "Account not registered. Please switch to 'Create Account' to register your student profile first.");
+      setError(res.error || "Account not registered. Please switch to 'Create Account' to register your profile first.");
       if (res.emailUnconfirmed) {
         setIsConfirmationSent(true);
       }
@@ -225,9 +230,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
 
     const res = await signUpWithPassword(
       fullName,
-      university || "University of Waterloo", 
+      university || "University of Delhi", 
       finalDegree || "B.Tech (Bachelor of Technology)",
-      semester || "Fall 2026",
+      semester || "Semester 1",
       major || "Computer Science", 
       email, 
       password,
@@ -262,7 +267,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     setSuccessMessage(null);
     const targetEmail = (googleSignInEmail || email).trim();
     if (!targetEmail || !isValidStudentEmail(targetEmail)) {
-      setError("Please enter your registered student Google email address (e.g. student@uwaterloo.ca or name@gmail.com).");
+      setError("Please enter your registered Google email address (e.g. student@du.ac.in or name@gmail.com).");
       return;
     }
 
@@ -273,7 +278,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
       setIsGoogleSignInOpen(false);
       onClose();
     } else {
-      setError(res.error || `No registered student account found for "${targetEmail}". Please create your account first.`);
+      setError(res.error || `No registered account found for "${targetEmail}". Please create your account first.`);
     }
   };
 
@@ -281,7 +286,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
   const handleGoogleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!googleEmail || !googleName) {
-      setError("Please enter your student Google email and full name.");
+      setError("Please enter your Google email and full name.");
       return;
     }
     if (!googlePassword || googlePassword.length < 6) {
@@ -297,9 +302,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     const res = await signInWithGoogleCustom(
       googleEmail, 
       googleName, 
-      googleUni || "University of Waterloo", 
+      googleUni || "University of Delhi", 
       googleDegree || "B.Tech (Bachelor of Technology)",
-      googleSemester || "Fall 2026",
+      googleSemester || "Semester 1",
       "Computer Science",
       selectedCourses,
       syncGoogleCalendar,
@@ -320,7 +325,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     setError(null);
     setSuccessMessage(null);
     if (!forgotEmail) {
-      setError("Please enter your registered student email.");
+      setError("Please enter your registered email.");
       return;
     }
     setLoading(true);
@@ -373,6 +378,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     }
   };
 
+  const handleAddCustomCourse = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const trimmed = customCourseInput.trim();
+    if (!trimmed) return;
+    if (!selectedCourses.includes(trimmed)) {
+      setSelectedCourses([...selectedCourses, trimmed]);
+    }
+    setCustomCourseInput("");
+  };
+
+  const handleRemoveCourse = (courseToRemove: string) => {
+    setSelectedCourses(selectedCourses.filter(c => c !== courseToRemove));
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
       <div 
@@ -416,9 +435,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 : tab === "forgot"
                   ? "Recover your student portal password via 6-digit email code."
                   : tab === "signin" 
-                    ? "Sign in with your student email or Google account." 
+                    ? "Sign in with your email or Google account." 
                     : step === 1 
-                      ? "Step 1 of 2: Enter student identity and credentials." 
+                      ? "Step 1 of 2: Enter identity and credentials." 
                       : "Step 2 of 2: Set university, semester, and Google Calendar sync."}
           </p>
         </div>
@@ -535,7 +554,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               <span>Supabase Email Verification Link Dispatched</span>
             </div>
             <p className="text-slate-300 font-light leading-relaxed">
-              A free confirmation link has been sent to <span className="font-mono text-white font-bold">{email || "your student email"}</span>. Please click the link in your inbox to confirm your account.
+              A free confirmation link has been sent to <span className="font-mono text-white font-bold">{email || "your email"}</span>. Please click the link in your inbox to confirm your account.
             </p>
             {resendStatus && (
               <div className="text-[11px] font-mono text-emerald-400">{resendStatus}</div>
@@ -637,7 +656,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 spellCheck="false"
                 value={googleSignInEmail}
                 onChange={(e) => setGoogleSignInEmail(e.target.value)}
-                placeholder="student@uwaterloo.ca or name@gmail.com"
+                placeholder="student@du.ac.in or name@gmail.com"
                 className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
               />
             </div>
@@ -685,20 +704,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Google verifies your student email and identity token with zero manual confirmation links required.
+                Google verifies your email and identity token with zero manual confirmation links required.
               </p>
             </div>
 
             <div>
               <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                STUDENT GOOGLE EMAIL
+                GOOGLE EMAIL
               </label>
               <input
                 type="email"
                 required
                 value={googleEmail}
                 onChange={(e) => setGoogleEmail(e.target.value)}
-                placeholder="student@uwaterloo.ca"
+                placeholder="student@du.ac.in"
                 className="w-full h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
               />
             </div>
@@ -770,7 +789,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   type="text"
                   value={googleUni}
                   onChange={(e) => setGoogleUni(e.target.value)}
-                  placeholder="e.g. University of Waterloo"
+                  placeholder="e.g. University of Delhi"
                   className="w-full h-10 px-2.5 bg-[#090d12] border border-white/15 text-xs text-white outline-none rounded-xl"
                 />
               </div>
@@ -782,7 +801,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   type="text"
                   value={googleSemester}
                   onChange={(e) => setGoogleSemester(e.target.value)}
-                  placeholder="e.g. Fall 2026"
+                  placeholder="e.g. Semester 1"
                   className="w-full h-10 px-2.5 bg-[#090d12] border border-white/15 text-xs text-white outline-none rounded-xl"
                 />
               </div>
@@ -867,20 +886,20 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                     <span>6-Digit Verification Code Recovery</span>
                   </div>
                   <p className="text-[11px] text-slate-400">
-                    Enter your registered student email address. We will dispatch a 6-digit recovery PIN to your inbox.
+                    Enter your registered email address. We will dispatch a 6-digit recovery PIN to your inbox.
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                    STUDENT EMAIL
+                    EMAIL
                   </label>
                   <input
                     type="email"
                     required
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="student@uwaterloo.ca"
+                    placeholder="student@du.ac.in"
                     className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   />
                 </div>
@@ -1074,7 +1093,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
             <form onSubmit={handleSignIn} className="space-y-3">
               <div>
                 <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                  STUDENT EMAIL
+                  EMAIL
                 </label>
                 <input
                   ref={emailInputRef}
@@ -1084,7 +1103,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   spellCheck="false"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@uwaterloo.ca"
+                  placeholder="student@du.ac.in"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                   required
                 />
@@ -1155,13 +1174,13 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
           <div className="space-y-4">
             <div className="p-3 bg-[#131b26] border border-white/10 text-xs text-white space-y-1 rounded-xl">
               <div className="font-bold flex items-center gap-2 text-white">
-                <span>Student Identity & Security</span>
+                <span>Identity & Security</span>
                 <span className="ml-auto px-1.5 py-0.5 bg-blue-500/20 text-blue-400 text-[9px] font-mono uppercase font-bold rounded">
                   Step 1 of 2
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Enter your full name, student email, and create a master password.
+                Enter your full name, email, and create a master password.
               </p>
             </div>
 
@@ -1182,14 +1201,14 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
 
               <div>
                 <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1">
-                  STUDENT EMAIL (FOR CONFIRMATION LINK)
+                  EMAIL (FOR CONFIRMATION LINK)
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="yourname@university.edu"
+                  placeholder="yourname@du.ac.in"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl font-mono"
                 />
               </div>
@@ -1256,7 +1275,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                 list="university-list"
                 value={university}
                 onChange={(e) => setUniversity(e.target.value)}
-                placeholder="e.g. University of Waterloo"
+                placeholder="e.g. University of Delhi"
                 className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
               />
               <datalist id="university-list">
@@ -1276,7 +1295,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
                   list="semester-list"
                   value={semester}
                   onChange={(e) => setSemester(e.target.value)}
-                  placeholder="e.g. Fall 2026"
+                  placeholder="e.g. Semester 1"
                   className="w-full h-11 px-3 bg-[#090d12] border border-white/15 text-sm text-white focus:border-[#1c69d4] outline-none rounded-xl"
                 />
                 <datalist id="semester-list">
@@ -1332,33 +1351,94 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               </div>
             )}
 
-            <div>
-              <label className="block text-[11px] font-mono uppercase text-slate-300 mb-1.5">
-                ENROLLED COURSES (SELECT INITIAL SUBJECTS)
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {SUGGESTED_COURSES.map((course, idx) => {
-                  const isSelected = selectedCourses.includes(course);
-                  return (
-                    <button
+            {/* CURRENT SEMESTER COURSES (DYNAMIC ADD / REMOVE) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-mono uppercase text-slate-300">
+                  CURRENT SEMESTER COURSES ({selectedCourses.length})
+                </label>
+                <span className="text-[10px] font-mono text-slate-400">
+                  For {semester || "Semester 1"}
+                </span>
+              </div>
+
+              {/* Quick Input to Add New Current Course */}
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={customCourseInput}
+                  onChange={(e) => setCustomCourseInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddCustomCourse();
+                    }
+                  }}
+                  placeholder="e.g. CS 101 - Intro to Programming"
+                  className="flex-1 h-10 px-3 bg-[#090d12] border border-white/15 text-xs text-white focus:border-[#1c69d4] outline-none rounded-xl"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomCourse}
+                  className="px-3.5 py-2 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-xs font-bold uppercase rounded-xl transition-all flex items-center gap-1 cursor-pointer flex-shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add</span>
+                </button>
+              </div>
+
+              {/* Selected Current Courses Chip List with 1-Tap Removal */}
+              {selectedCourses.length > 0 ? (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {selectedCourses.map((course, idx) => (
+                    <div
                       key={idx}
-                      type="button"
-                      onClick={() => toggleCourse(course)}
-                      className={`p-2.5 text-xs text-left border rounded-xl flex items-center justify-between transition-all cursor-pointer ${
-                        isSelected 
-                          ? "bg-[var(--primary)]/15 border-[var(--primary)] text-white font-bold" 
-                          : "bg-[#090d12] border-white/10 text-slate-400 hover:border-white/20"
-                      }`}
+                      className="p-2 bg-[#090d12] border border-[var(--primary)]/40 rounded-xl flex items-center justify-between text-xs text-white font-mono"
                     >
-                      <span className="truncate pr-2">{course}</span>
-                      <div className={`w-4 h-4 border flex items-center justify-center rounded flex-shrink-0 ${
-                        isSelected ? "bg-[var(--primary)] border-[var(--primary)] text-white" : "border-slate-600"
-                      }`}>
-                        {isSelected && <Check className="w-3 h-3" />}
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)]" />
+                        <span className="truncate">{course}</span>
                       </div>
-                    </button>
-                  );
-                })}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCourse(course)}
+                        className="p-1 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer flex-shrink-0"
+                        title="Remove Course"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-3 bg-[#090d12] border border-white/10 rounded-xl text-center text-xs text-slate-400">
+                  No courses added for this semester yet. Type a subject above or choose from presets below.
+                </div>
+              )}
+
+              {/* Semester 1 Course Presets */}
+              <div className="pt-1 space-y-1.5">
+                <span className="block text-[10px] font-mono text-slate-500 uppercase">QUICK SUGGESTIONS:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {SUGGESTED_COURSES.map((course, idx) => {
+                    const isSelected = selectedCourses.includes(course);
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => toggleCourse(course)}
+                        className={`px-2.5 py-1 text-[11px] font-mono rounded-lg border transition-all cursor-pointer flex items-center gap-1 ${
+                          isSelected 
+                            ? "bg-[var(--primary)]/20 border-[var(--primary)] text-white font-bold" 
+                            : "bg-[#090d12] border-white/10 text-slate-400 hover:text-slate-200"
+                        }`}
+                      >
+                        <span>{course.split(" - ")[0]}</span>
+                        {isSelected ? <Check className="w-3 h-3 text-[var(--primary)]" /> : <Plus className="w-3 h-3 text-slate-500" />}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

@@ -228,9 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Auto-upgrade schema for existing accounts (Feature Backfill)
           const upgradedProfile: UserProfile = {
             ...parsed,
-            university: parsed.university || "University of Waterloo",
+            university: parsed.university || "University of Delhi",
             degree: parsed.degree || "B.Tech (Bachelor of Technology)",
-            semester: parsed.semester || "Fall 2026",
+            semester: parsed.semester || "Semester 1",
             major: parsed.major || "Computer Science",
             densityPreference: parsed.densityPreference || "comfortable",
             googleCalendarSynced: parsed.googleCalendarSynced ?? true,
@@ -335,7 +335,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             instructor: "Faculty Instructor",
             meetingLink: `https://meet.google.com/${code.toLowerCase().replace(/\s+/g, "-")}`,
             meetingPlatform: "meet",
-            scheduleTime: "Mon/Wed 10:30 AM"
+            scheduleTime: "Mon/Wed 10:30 AM",
+            updatedAt: new Date().toISOString()
           };
         });
       }
@@ -354,7 +355,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await simulateNetworkLatency(400);
 
     if (!email || !pass) {
-      return { success: false, error: "Please enter both student email and password." };
+      return { success: false, error: "Please enter both email and password." };
     }
 
     const trimmedEmail = email.trim().toLowerCase();
@@ -372,7 +373,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (supaErr.message.toLowerCase().includes("email not confirmed")) {
             return { 
               success: false, 
-              error: "Please confirm your student email before signing in. Check your inbox for the Supabase verification link.",
+              error: "Please confirm your email before signing in. Check your inbox for the Supabase verification link.",
               emailUnconfirmed: true 
             };
           }
@@ -385,10 +386,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fullName: meta.full_name || "Student",
             emailVerified: true,
             googleVerified: false,
-            university: meta.university || "University of Waterloo",
+            university: meta.university || "University of Delhi",
             degree: meta.degree || "Bachelor of Technology (B.Tech)",
             major: meta.major || "Computer Science",
-            semester: meta.semester || "Fall 2026",
+            semester: meta.semester || "Semester 1",
             googleCalendarSynced: meta.google_calendar_synced ?? true,
             densityPreference: meta.density_preference || "comfortable",
             provider: "email",
@@ -625,9 +626,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fullName: fullName.trim(),
       emailVerified: true,
       googleVerified: false,
-      university: university.trim() || "University of Waterloo",
+      university: university.trim() || "University of Delhi",
       degree: degree.trim() || "Bachelor of Technology (B.Tech)",
-      semester: semester.trim() || "Fall 2026",
+      semester: semester.trim() || "Semester 1",
       major: major.trim() || "Computer Science",
       googleCalendarSynced: syncGoogleCalendar,
       densityPreference: "comfortable",
@@ -693,9 +694,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogleCustom = async (
     email: string, 
     fullName: string, 
-    university: string = "University of Waterloo", 
+    university: string = "University of Delhi", 
     degree: string = "Bachelor of Technology (B.Tech)",
-    semester: string = "Fall 2026",
+    semester: string = "Semester 1",
     major: string = "Computer Science",
     initialCourses?: string[],
     syncGoogleCalendar: boolean = true,
@@ -1305,7 +1306,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const sendPasswordResetEmail = useCallback(async (emailToReset: string): Promise<{ success: boolean; delivered?: boolean; error?: string }> => {
-    if (!emailToReset) return { success: false, error: "Please enter your student email." };
+    if (!emailToReset) return { success: false, error: "Please enter your email." };
     await simulateNetworkLatency(400);
 
     const trimmed = emailToReset.trim().toLowerCase();
