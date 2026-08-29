@@ -5,6 +5,7 @@ import { useTheme } from "@/lib/theme-context";
 import { useAuth } from "@/lib/auth-context";
 import Logo from "@/components/Logo";
 import ProfileModal from "@/components/ProfileModal";
+import SyncStatusBadge from "@/components/SyncStatusBadge";
 import { 
   Sun, 
   Moon, 
@@ -127,6 +128,11 @@ export default function Navbar({
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[var(--primary)] rounded-full ring-2 ring-[var(--nav-bg)] animate-pulse" />
                   )}
                 </button>
+
+                {/* Real-time Multi-Device Sync Indicator */}
+                <div className="hidden sm:flex items-center">
+                  <SyncStatusBadge />
+                </div>
 
                 {/* Theme Toggle */}
                 <button

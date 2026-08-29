@@ -59,7 +59,7 @@ COURSE POLICIES:
 All programming assignments must be submitted via Git before 11:59 PM on the due date.`;
 
 export default function CourseDocumentViewer() {
-  const { user, userData, addTask, addExam } = useAuth();
+  const { user, userData, addTask, addExam, addCourse } = useAuth();
   
   // Top-level tab switcher
   const [activeTab, setActiveTab] = useState<"reader" | "parser">("reader");
@@ -328,13 +328,26 @@ export default function CourseDocumentViewer() {
 
     let tasksCount = 0;
     let examsCount = 0;
+    let courseEnrolled = false;
+
+    // 0. Auto-enroll Course into Enrolled Subjects if not yet present
+    const cCode = parsedResult.courseCode || "CS 101";
+    const existingCourse = userData.courses.find(c => c.courseCode.toLowerCase() === cCode.toLowerCase());
+    if (!existingCourse) {
+      addCourse({
+        courseCode: cCode,
+        courseName: parsedResult.courseTitle || `${cCode} Course`,
+        instructor: parsedResult.instructor || "Faculty Professor"
+      });
+      courseEnrolled = true;
+    }
 
     // 1. Dispatch Deliverables to Kanban/Tasks
     parsedResult.deliverables.forEach(d => {
       if (d.selected) {
         addTask({
           title: d.title,
-          courseCode: d.courseCode || parsedResult.courseCode || "CS 101",
+          courseCode: d.courseCode || cCode,
           dueDate: d.dueDate || new Date().toISOString().split("T")[0],
           dueTime: d.dueTime || "23:59",
           priority: d.priority || "medium",
@@ -350,7 +363,7 @@ export default function CourseDocumentViewer() {
       if (e.selected) {
         addExam({
           title: e.name,
-          courseCode: e.courseCode || parsedResult.courseCode || "CS 101",
+          courseCode: e.courseCode || cCode,
           examDate: e.date || new Date().toISOString().split("T")[0],
           weightPercent: e.weightPercent || 25,
           location: "To Be Announced",
@@ -365,8 +378,8 @@ export default function CourseDocumentViewer() {
       const docPages = syllabusInputText.split("\n\n---\n\n");
       const newDoc: DocumentItem = {
         id: `doc_syllabus_${Date.now()}`,
-        courseCode: parsedResult.courseCode || "CS 101",
-        title: `${parsedResult.courseCode} - Official Course Syllabus`,
+        courseCode: cCode,
+        title: `${cCode} - Official Course Syllabus`,
         type: "Syllabus",
         pageCount: docPages.length,
         content: docPages.length > 0 ? docPages : [syllabusInputText]
@@ -376,7 +389,9 @@ export default function CourseDocumentViewer() {
       setSelectedDocId(newDoc.id);
     }
 
-    setImportSuccessMessage(`✨ Successfully imported ${tasksCount} assignments to Tasks & Kanban and ${examsCount} exams to Grade Predictor!`);
+    setImportSuccessMessage(
+      `✨ Successfully imported ${tasksCount} assignments, ${examsCount} exams${courseEnrolled ? ` and enrolled ${cCode}` : ""} into your semester dashboard!`
+    );
   };
 
   return (

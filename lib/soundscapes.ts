@@ -3,7 +3,7 @@
 // High-Fidelity Web Audio API Soundscape & Scientific Frequency Synthesizer
 // Zero external network delay, 100% offline, zero third-party tracking, runs entirely in client memory
 
-export type SoundscapeType = "none" | "rain" | "white" | "brown" | "pink" | "green" | "gamma" | "alpha" | "cafe";
+export type SoundscapeType = "none" | "rain" | "white" | "brown" | "pink" | "green" | "gamma" | "alpha" | "theta" | "cafe" | "vinyl" | "ocean";
 
 export interface SoundscapeOption {
   id: SoundscapeType;
@@ -16,13 +16,16 @@ export interface SoundscapeOption {
 export const SOUNDSCAPE_OPTIONS: SoundscapeOption[] = [
   { id: "none", name: "Silent", category: "Quiet", iconName: "VolumeX" },
   { id: "rain", name: "Natural Rain", category: "Nature", scientificLabel: "Droplet Resonance & Pink Falloff", iconName: "CloudRain" },
-  { id: "white", name: "White Noise", category: "Noise", scientificLabel: "Flat Power Spectrum (Distraction Blocker)", iconName: "Radio" },
+  { id: "ocean", name: "Pacific Ocean", category: "Nature", scientificLabel: "Rolling Tidal Swells & White Foam", iconName: "Waves" },
+  { id: "green", name: "Forest Green", category: "Nature", scientificLabel: "500Hz Centered Canopy Spectrum", iconName: "Leaf" },
+  { id: "cafe", name: "Parisian Cafe", category: "Atmosphere", scientificLabel: "Warm Rhodes Jazz & Coffeehouse Ambience", iconName: "Coffee" },
+  { id: "vinyl", name: "Lo-Fi Vinyl", category: "Atmosphere", scientificLabel: "Vintage Needle Crackle & Dusty Turntable Warmth", iconName: "Disc" },
+  { id: "alpha", name: "10 Hz Alpha", category: "Binaural", scientificLabel: "Calm Alertness & Deep Reading", iconName: "Brain" },
+  { id: "theta", name: "6 Hz Theta", category: "Binaural", scientificLabel: "Creative Problem Solving & Insight", iconName: "Sparkles" },
+  { id: "gamma", name: "40 Hz Gamma", category: "Binaural", scientificLabel: "Working Memory & Coding Flow", iconName: "Zap" },
   { id: "brown", name: "Brown Noise", category: "Noise", scientificLabel: "320Hz Lowpass (ADHD & Deep Isolation)", iconName: "Radio" },
   { id: "pink", name: "Pink Noise", category: "Noise", scientificLabel: "1/f Natural Waterfall Falloff", iconName: "Radio" },
-  { id: "green", name: "Forest Green", category: "Nature", scientificLabel: "500Hz Centered Canopy Spectrum", iconName: "Leaf" },
-  { id: "gamma", name: "40 Hz Gamma", category: "Binaural", scientificLabel: "Working Memory & Coding Flow", iconName: "Zap" },
-  { id: "alpha", name: "10 Hz Alpha", category: "Binaural", scientificLabel: "Calm Alertness & Deep Reading", iconName: "Brain" },
-  { id: "cafe", name: "Parisian Cafe", category: "Atmosphere", scientificLabel: "Warm Rhodes Jazz & Coffeehouse Ambience", iconName: "Coffee" }
+  { id: "white", name: "White Noise", category: "Noise", scientificLabel: "Flat Power Spectrum (Distraction Blocker)", iconName: "Radio" }
 ];
 
 class NaturalSoundscapeEngine {
@@ -441,6 +444,146 @@ class NaturalSoundscapeEngine {
         }, 8000);
 
         this.activeNodes.push(clinkTimer as any);
+        break;
+      }
+
+      case "ocean": {
+        // Pacific Ocean Waves: Dual-layer tidal swell modulated by slow 0.1 Hz LFO
+        const bufferSize = ctx.sampleRate * 4;
+        const noiseBuffer = ctx.createBuffer(2, bufferSize, ctx.sampleRate);
+        for (let ch = 0; ch < 2; ch++) {
+          const out = noiseBuffer.getChannelData(ch);
+          let lastOut = 0.0;
+          for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            out[i] = (lastOut + 0.02 * white) / 1.02; // Brown noise roll
+            lastOut = out[i];
+          }
+        }
+
+        const swellNoise = ctx.createBufferSource();
+        swellNoise.buffer = noiseBuffer;
+        swellNoise.loop = true;
+
+        const swellFilter = ctx.createBiquadFilter();
+        swellFilter.type = "lowpass";
+        swellFilter.frequency.setValueAtTime(450, ctx.currentTime);
+
+        const swellGain = ctx.createGain();
+        swellGain.gain.setValueAtTime(0.3, ctx.currentTime);
+
+        // LFO Wave Swell Oscillator (0.11 Hz ~ 9 second wave period)
+        const lfo = ctx.createOscillator();
+        lfo.type = "sine";
+        lfo.frequency.setValueAtTime(0.11, ctx.currentTime);
+
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.setValueAtTime(0.25, ctx.currentTime);
+
+        lfo.connect(lfoGain);
+        lfoGain.connect(swellGain.gain);
+
+        swellNoise.connect(swellFilter);
+        swellFilter.connect(swellGain);
+        swellGain.connect(this.gainNode);
+
+        swellNoise.start();
+        lfo.start();
+        this.activeNodes.push(swellNoise, swellFilter, swellGain, lfo, lfoGain);
+        break;
+      }
+
+      case "vinyl": {
+        // Lo-Fi Vinyl: Warm low-pass floor with continuous dusty crackles & clicks
+        const bufferSize = ctx.sampleRate * 2;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const out = noiseBuffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          b0 = 0.99886 * b0 + white * 0.0555179;
+          b1 = 0.99332 * b1 + white * 0.0750759;
+          b2 = 0.96900 * b2 + white * 0.1538520;
+          out[i] = (b0 + b1 + b2) * 0.08;
+        }
+
+        const hissSource = ctx.createBufferSource();
+        hissSource.buffer = noiseBuffer;
+        hissSource.loop = true;
+
+        const hissFilter = ctx.createBiquadFilter();
+        hissFilter.type = "bandpass";
+        hissFilter.frequency.setValueAtTime(1200, ctx.currentTime);
+        hissFilter.Q.setValueAtTime(0.5, ctx.currentTime);
+
+        const hissGain = ctx.createGain();
+        hissGain.gain.setValueAtTime(0.4, ctx.currentTime);
+
+        hissSource.connect(hissFilter);
+        hissFilter.connect(hissGain);
+        hissGain.connect(this.gainNode);
+        hissSource.start();
+        this.activeNodes.push(hissSource, hissFilter, hissGain);
+
+        // Discrete Dust Crackle Impulses (Poisson bursts)
+        const crackleTimer = setInterval(() => {
+          if (!this.gainNode || this.currentType !== "vinyl") return;
+          const popCount = Math.floor(Math.random() * 4);
+          for (let p = 0; p < popCount; p++) {
+            const now = ctx.currentTime + Math.random() * 0.15;
+            const popOsc = ctx.createOscillator();
+            popOsc.type = "triangle";
+            popOsc.frequency.setValueAtTime(800 + Math.random() * 3200, now);
+
+            const popGain = ctx.createGain();
+            popGain.gain.setValueAtTime(0.0001, now);
+            popGain.gain.linearRampToValueAtTime(0.03 + Math.random() * 0.04, now + 0.002);
+            popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
+
+            popOsc.connect(popGain);
+            popGain.connect(this.gainNode);
+            popOsc.start(now);
+            popOsc.stop(now + 0.025);
+            this.activeNodes.push(popOsc, popGain);
+          }
+        }, 180);
+
+        this.activeNodes.push(crackleTimer as any);
+        break;
+      }
+
+      case "theta": {
+        // 6 Hz Theta Waves (150 Hz Left / 156 Hz Right - Creative Thinking & Subconscious Flow)
+        const baseFreq = 150;
+        const beatOffset = 6;
+
+        const leftOsc = ctx.createOscillator();
+        leftOsc.type = "sine";
+        leftOsc.frequency.setValueAtTime(baseFreq, ctx.currentTime);
+
+        const rightOsc = ctx.createOscillator();
+        rightOsc.type = "sine";
+        rightOsc.frequency.setValueAtTime(baseFreq + beatOffset, ctx.currentTime);
+
+        const leftGain = ctx.createGain();
+        leftGain.gain.setValueAtTime(0.2, ctx.currentTime);
+
+        const rightGain = ctx.createGain();
+        rightGain.gain.setValueAtTime(0.2, ctx.currentTime);
+
+        const merger = ctx.createChannelMerger(2);
+
+        leftOsc.connect(leftGain);
+        rightOsc.connect(rightGain);
+
+        leftGain.connect(merger, 0, 0);  // Channel 0 = Left ear
+        rightGain.connect(merger, 0, 1); // Channel 1 = Right ear
+
+        merger.connect(this.gainNode);
+
+        leftOsc.start();
+        rightOsc.start();
+        this.activeNodes.push(leftOsc, rightOsc, leftGain, rightGain, merger);
         break;
       }
     }
