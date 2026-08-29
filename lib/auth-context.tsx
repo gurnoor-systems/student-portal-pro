@@ -407,13 +407,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }]
           };
 
-          setUser(profile);
-          localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
-          ensureUserDataSeeded(profile.id);
-          loadUserData(profile.id);
-
-          // Notify server for multi-device sync
-          fetch("/api/auth/sync", {
+          // Verify with Central Server Sync that account is still active and not deleted
+          const serverCheck = await fetch("/api/auth/sync", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -422,7 +417,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               password: pass,
               deviceInfo
             })
-          }).catch(() => {});
+          });
+
+          const syncData = await serverCheck.json();
+          if (serverCheck.ok && syncData.notFound) {
+            // Account was deleted/purged! Force sign out and reject login
+            await supabase.auth.signOut();
+            localStorage.removeItem("student_portal_active_user");
+            return {
+              success: false,
+              error: "No active verified account found with this email. Please click 'Create Account' to register."
+            };
+          }
+
+          setUser(profile);
+          localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+
+          if (syncData?.userData) {
+            localStorage.setItem(`student_portal_user_${profile.id}_data`, JSON.stringify(syncData.userData));
+            setUserData(syncData.userData);
+          } else {
+            ensureUserDataSeeded(profile.id);
+            loadUserData(profile.id);
+          }
 
           return { success: true };
         }
@@ -1110,9 +1127,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await simulateNetworkLatency(250);
     const supabase = createClient();
     if (supabase) {
-      await supabase.auth.signOut();
+      try {
+        await supabase.auth.signOut();
+      } catch {}
     }
     localStorage.removeItem("student_portal_active_user");
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sb-") || k.includes("supabase"))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
     setUser(null);
     setUserData(EMPTY_DATA);
   };
@@ -1591,10 +1618,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch {}
     }
 
-    // 3. Clear Local Storage
+    // 3. Clear Local Storage & Supabase Auth Tokens completely
     localStorage.removeItem("student_portal_active_user");
     localStorage.removeItem(`student_portal_user_${userIdToDelete}_data`);
+    localStorage.removeItem(`student_portal_pending_sync_${userIdToDelete}`);
     
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith("sb-") || k.includes("supabase") || k.includes(userIdToDelete))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch {}
+
     const accounts = getRegisteredAccounts();
     const filteredAccounts = accounts.filter(a => a.id !== userIdToDelete && a.email.toLowerCase() !== emailToDelete);
     saveRegisteredAccounts(filteredAccounts);
