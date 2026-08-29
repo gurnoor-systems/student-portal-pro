@@ -161,3 +161,9 @@ export interface ParsedSyllabusResult {
   rawTextPreview?: string;
 }
 
+export interface UserData {
+  courses: CourseItem[];
+  tasks: TaskItem[];
+  exams: ExamItem[];
+  documents: MaterialItem[];
+}
