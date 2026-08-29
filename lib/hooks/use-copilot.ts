@@ -28,13 +28,33 @@ export function useCopilot({ user, userData, onExecuteAction }: UseCopilotOption
     {
       id: "msg_init",
       role: "assistant",
-      content: `Hello ${user?.fullName?.split(" ")[0] || "there"}! 👋 I am your **Academic AI Copilot**.\n\nI have live awareness of your **${userData.courses.length} courses**, **${userData.tasks.filter(t => t.status !== "completed").length} active assignments**, and daily routine.\n\nHow can I help your studies today?`,
+      content: `Hello ${user?.fullName?.split(" ")[0] || "Scholar"}! 👋 I am your **Academic AI Copilot**.\n\nI have live awareness of your **${userData.courses.length} courses**, **${userData.tasks.filter(t => t.status !== "completed").length} active assignments**, and daily routine.\n\nHow can I help your studies today?`,
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     }
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  // Reactively hydrate initial welcome greeting when user or courses finish loading
+  useEffect(() => {
+    setMessages(prev => {
+      if (prev.length <= 1) {
+        const studentName = user?.fullName?.split(" ")[0] || "Scholar";
+        const courseCount = userData.courses.length;
+        const activeTasks = userData.tasks.filter(t => t.status !== "completed").length;
+        return [
+          {
+            id: "msg_init",
+            role: "assistant",
+            content: `Hello **${studentName}**! 👋 I am your **Academic AI Copilot** at **${user?.university || "University of Delhi"}**.\n\nI have live awareness of your **${courseCount} courses**, **${activeTasks} active assignments**, and daily routine.\n\nHow can I help your studies today?`,
+            timestamp: prev[0]?.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          }
+        ];
+      }
+      return prev;
+    });
+  }, [user, userData.courses.length, userData.tasks]);
 
   const sendMessage = useCallback(async (textToSend?: string) => {
     const query = (textToSend || input).trim();

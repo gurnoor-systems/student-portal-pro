@@ -159,10 +159,10 @@ export default function AcademicAIAgent({
 
   // Quick Prompt Suggestions
   const quickPrompts = [
+    { label: "🎯 Exam Prep Roadmap", query: "Generate me an exam prep based on my past record and enrolled courses" },
     { label: "📋 What's due this week?", query: "What assignments and deadlines are due in the next 7 days?" },
-    { label: "⚡ Schedule 45m Math Block", query: "Schedule a 45-minute Deep Focus study block for Math at 4 PM" },
-    { label: "🎯 Start 25m Pomodoro", query: "Start a 25-minute Pomodoro focus session" },
-    { label: "➕ Add CS Lab Task", query: "Add a high priority task 'CS Lab Report' due this Friday" }
+    { label: "⚡ Schedule 45m Focus Block", query: "Schedule a 45-minute Deep Focus study block for today" },
+    { label: "🎧 Launch Focus Sanctuary", query: "Start a 50-minute Focus session with ambient audio" }
   ];
 
   if (!isOpen) return null;
