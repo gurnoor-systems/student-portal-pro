@@ -29,21 +29,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#070b10" />
+        <meta name="theme-color" content="#edf1f6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                var saved = localStorage.getItem("student_portal_pro_theme") || localStorage.getItem("theme");
-                if (saved === "light") {
-                  document.documentElement.classList.remove("dark");
-                  document.documentElement.classList.add("light");
-                } else {
+                var saved = localStorage.getItem("student_portal_theme") || localStorage.getItem("student_portal_pro_theme") || localStorage.getItem("theme");
+                if (saved === "dark") {
                   document.documentElement.classList.add("dark");
+                } else {
+                  document.documentElement.classList.remove("dark");
                 }
               } catch (e) {}
 

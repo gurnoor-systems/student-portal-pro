@@ -10,22 +10,22 @@ interface ThemeContextType {
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "dark",
+  theme: "light",
   toggleTheme: () => {},
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("student_portal_theme") as Theme | null;
-    if (savedTheme === "light" || savedTheme === "dark") {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle("dark", savedTheme === "dark");
-    } else {
-      document.documentElement.classList.add("dark");
+    const savedTheme = (localStorage.getItem("student_portal_theme") || localStorage.getItem("student_portal_pro_theme")) as Theme | null;
+    if (savedTheme === "dark") {
       setTheme("dark");
+      document.documentElement.classList.add("dark");
+    } else {
+      setTheme("light");
+      document.documentElement.classList.remove("dark");
     }
     setMounted(true);
   }, []);
@@ -34,6 +34,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const newTheme: Theme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
     localStorage.setItem("student_portal_theme", newTheme);
+    localStorage.setItem("student_portal_pro_theme", newTheme);
     if (newTheme === "dark") {
       document.documentElement.classList.add("dark");
     } else {
