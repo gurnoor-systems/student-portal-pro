@@ -29,7 +29,8 @@ import {
   CheckCircle2,
   HelpCircle,
   ChevronDown,
-  Search
+  Search,
+  Loader2
 } from "lucide-react";
 import { FAQ_DATA } from "@/components/FAQSection";
 

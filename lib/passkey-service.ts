@@ -73,7 +73,7 @@ export class PasskeyService {
     const challenge = new Uint8Array(32);
     window.crypto.getRandomValues(challenge);
 
-    const userHandle = new TextEncoder().encode(userId);
+    const userHandle = new TextEncoder().encode(userId).buffer as ArrayBuffer;
 
     const creationOptions: CredentialCreationOptions = {
       publicKey: {
@@ -149,7 +149,7 @@ export class PasskeyService {
 
     const allowCredentials: PublicKeyCredentialDescriptor[] | undefined = allowedCredentialIds && allowedCredentialIds.length > 0
       ? allowedCredentialIds.map(id => ({
-          id: base64URLToBuffer(id),
+          id: base64URLToBuffer(id).buffer as ArrayBuffer,
           type: "public-key" as const
         }))
       : undefined;

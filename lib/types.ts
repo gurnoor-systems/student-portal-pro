@@ -127,7 +127,7 @@ export interface RegisteredAccount {
   semester: string;
   googleCalendarSynced: boolean;
   densityPreference?: "comfortable" | "compact";
-  provider: "email" | "google";
+  provider: "email" | "google" | "passkey";
   createdAt: string;
   lastLoginAt?: string;
 }
