@@ -125,20 +125,21 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
         </div>
 
         {/* Sync & Action Group */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           <button
             onClick={() => setIsConnectModalOpen(true)}
-            className="px-3 py-2 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[var(--hairline)] text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
+            className="px-2.5 sm:px-3 py-2 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[var(--hairline)] text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
             title="Configure Google Calendar Connection"
           >
             <Settings className="w-3.5 h-3.5 text-[#4285F4]" />
-            <span>Google Sync Options</span>
+            <span className="hidden sm:inline">Google Sync Options</span>
+            <span className="sm:hidden">Sync</span>
           </button>
 
           <button
             onClick={handleSyncGoogleCalendar}
             disabled={isSyncing}
-            className="bmw-btn-secondary !h-10 !text-xs !py-2 flex items-center gap-2"
+            className="bmw-btn-secondary !h-10 !text-xs !py-2 flex items-center gap-1.5"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[var(--primary)] ${isSyncing ? "animate-spin" : ""}`} />
             <span>{isSyncing ? "SYNCING..." : "PULL LATEST"}</span>
@@ -149,7 +150,8 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
             className="bmw-btn-primary !h-10 !text-xs !py-2"
           >
             <Plus className="w-4 h-4 mr-1" />
-            <span>ADD DELIVERABLE</span>
+            <span className="hidden sm:inline">ADD DELIVERABLE</span>
+            <span className="sm:hidden">ADD</span>
           </button>
         </div>
 
@@ -157,17 +159,17 @@ export default function CalendarView({ onOpenQuickAdd }: CalendarViewProps) {
 
       {/* Sync Status Banner */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 bg-[var(--surface-soft)] border border-[var(--hairline)] text-xs text-[var(--muted)] font-mono rounded">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className={`w-2 h-2 rounded-full ${user?.googleCalendarSynced ? "bg-emerald-500 animate-pulse" : "bg-blue-500"}`} />
-          <span>{user?.googleCalendarSynced ? "Google Calendar: Live 2-Way Sync Active" : "Local Sandbox Mode (Google Sync Optional)"}</span>
+          <span>{user?.googleCalendarSynced ? "Google Calendar: Live 2-Way Sync Active" : "Local Sandbox Mode"}</span>
           <span>•</span>
           <span>{syncStatus}</span>
         </div>
 
-        <div className="flex items-center gap-4 text-[11px]">
+        <div className="flex items-center gap-2.5 sm:gap-4 text-[11px] flex-wrap">
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 bg-red-500 rounded-sm" />
-            <span>High Priority / Exams</span>
+            <span>High Priority</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 bg-blue-500 rounded-sm" />

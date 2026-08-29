@@ -348,58 +348,60 @@ export default function DashboardView({ onOpenQuickAdd, onOpenWalkthrough }: Das
           })}
         </div>
 
-        {/* Workspace Top Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-[var(--hairline)]">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h1 className={`${density === "compact" ? "text-lg sm:text-2xl" : "text-xl sm:text-3xl"} font-bold tracking-tight text-[var(--ink)]`}>
-                {greeting}, {user?.fullName.split(" ")[0] || "Scholar"}
-              </h1>
-              {user?.googleCalendarSynced && (
-                <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 text-[10px] font-mono font-bold rounded items-center gap-1">
-                  <CalendarCheck className="w-3 h-3" />
-                  <span>SYNCED</span>
-                </span>
-              )}
+        {/* Workspace Top Header Bar (Rendered only on primary Summary / Today dashboard) */}
+        {dashboardTab === "summary" && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-[var(--hairline)] animate-in fade-in duration-150">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <h1 className={`${density === "compact" ? "text-lg sm:text-2xl" : "text-xl sm:text-3xl"} font-bold tracking-tight text-[var(--ink)]`}>
+                  {greeting}, {user?.fullName.split(" ")[0] || "Scholar"}
+                </h1>
+                {user?.googleCalendarSynced && (
+                  <span className="hidden sm:inline-flex px-2 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 text-[10px] font-mono font-bold rounded items-center gap-1">
+                    <CalendarCheck className="w-3 h-3" />
+                    <span>SYNCED</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] sm:text-xs text-[var(--muted)] font-mono">
+                {currentDateFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> {user?.degree ? `(${user.degree.split(" ")[0]} • ${user.semester || "Active"})` : `(${user?.semester || "Active"})`}
+              </p>
             </div>
-            <p className="text-[11px] sm:text-xs text-[var(--muted)] font-mono">
-              {currentDateFormatted} • <span className="text-[var(--primary)] font-semibold">{user?.university || "University"}</span> {user?.degree ? `(${user.degree.split(" ")[0]} • ${user.semester || "Active"})` : `(${user?.semester || "Active"})`}
-            </p>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Zero-Scroll Density Switcher */}
+              <button
+                onClick={handleToggleDensity}
+                className={`px-2.5 sm:px-3 py-1.5 rounded border text-[11px] sm:text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  density === "compact"
+                    ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm"
+                    : "bg-[var(--surface-soft)] text-[var(--muted)] border-[var(--hairline)] hover:text-[var(--ink)]"
+                }`}
+                title="Toggle Zero-Scroll Density Mode"
+              >
+                {density === "compact" ? <Rows className="w-3.5 h-3.5" /> : <AlignJustify className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{density === "compact" ? "COMPACT" : "COMFORTABLE"}</span>
+              </button>
+
+              <button
+                onClick={() => setIsFocusSanctuaryOpen(true)}
+                className="px-2.5 sm:px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[#d4af37]/40 text-[11px] sm:text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
+                title="Open Focus Sanctuary"
+              >
+                <Timer className="w-3.5 h-3.5 text-[#d4af37]" />
+                <span>Focus</span>
+              </button>
+
+              <button
+                onClick={onOpenQuickAdd}
+                className="px-3 sm:px-3.5 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded transition-all cursor-pointer shadow-sm ml-auto sm:ml-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Task</span>
+              </button>
+            </div>
           </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Zero-Scroll Density Switcher */}
-            <button
-              onClick={handleToggleDensity}
-              className={`px-2.5 sm:px-3 py-1.5 rounded border text-[11px] sm:text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                density === "compact"
-                  ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-sm"
-                  : "bg-[var(--surface-soft)] text-[var(--muted)] border-[var(--hairline)] hover:text-[var(--ink)]"
-              }`}
-              title="Toggle Zero-Scroll Density Mode"
-            >
-              {density === "compact" ? <Rows className="w-3.5 h-3.5" /> : <AlignJustify className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{density === "compact" ? "COMPACT" : "COMFORTABLE"}</span>
-            </button>
-
-            <button
-              onClick={() => setIsFocusSanctuaryOpen(true)}
-              className="px-2.5 sm:px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--surface-strong)] border border-[#d4af37]/40 text-[11px] sm:text-xs font-semibold text-[var(--ink)] flex items-center gap-1.5 rounded transition-all cursor-pointer"
-              title="Open Focus Sanctuary"
-            >
-              <Timer className="w-3.5 h-3.5 text-[#d4af37]" />
-              <span>Focus</span>
-            </button>
-
-            <button
-              onClick={onOpenQuickAdd}
-              className="px-3 sm:px-3.5 py-1.5 bg-[var(--primary)] hover:bg-[var(--primary-active)] text-white text-[11px] sm:text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 rounded transition-all cursor-pointer shadow-sm ml-auto sm:ml-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Add Task</span>
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* 3. ACTIVE VIEW CONTENT */}
         {dashboardTab === "summary" && (

@@ -154,7 +154,8 @@ export default function AssignmentTracker({ onOpenQuickAdd }: AssignmentTrackerP
             className="bmw-btn-primary !h-10 !text-xs !py-2 self-start lg:self-auto"
           >
             <Plus className="w-4 h-4 mr-1" />
-            <span>ADD DELIVERABLE (CTRL+K)</span>
+            <span className="hidden sm:inline">ADD DELIVERABLE (CTRL+K)</span>
+            <span className="sm:hidden">ADD DELIVERABLE</span>
           </button>
         </div>
 

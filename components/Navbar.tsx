@@ -93,8 +93,18 @@ export default function Navbar({
               </div>
 
               {/* Center/Right: University Chip + AI Copilot + Notifications + Theme + Profile Menu */}
-              <div className="flex items-center gap-2 sm:gap-3">
+              <div className="flex items-center gap-1.5 sm:gap-3">
                 
+                {/* Mobile Search Button (< md) */}
+                <button
+                  onClick={onOpenWalkthrough}
+                  className="flex md:hidden p-2 text-[var(--nav-ink-soft)] hover:text-[var(--nav-ink)] hover:bg-[var(--surface-soft)] transition-colors cursor-pointer rounded-lg"
+                  aria-label="Search"
+                  title="Search Portal"
+                >
+                  <Search className="w-4 h-4 text-[var(--nav-ink)]" />
+                </button>
+
                 {/* Active Campus / Term Tag */}
                 <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 bg-[var(--surface-soft)] border border-[var(--hairline)] rounded-lg text-xs font-mono">
                   <GraduationCap className="w-3.5 h-3.5 text-[#d4af37]" />
