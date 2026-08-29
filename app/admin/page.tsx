@@ -105,13 +105,38 @@ export default function AdminConsolePage() {
     if (!silent) setIsRefreshing(true);
     setAuthError(null);
     try {
-      // Reconcile any accounts registered on this browser device
+      // Reconcile any accounts registered on this browser device along with their courses & deliverables
       let clientAccounts: any[] = [];
       try {
         const rawLocal = localStorage.getItem("student_portal_registered_accounts");
         if (rawLocal) {
           const parsed = JSON.parse(rawLocal);
-          if (Array.isArray(parsed)) clientAccounts = parsed;
+          if (Array.isArray(parsed)) {
+            clientAccounts = parsed.map((acc: any) => {
+              // Load user-isolated data sandbox for this student
+              let userData: any = { courses: [], tasks: [], exams: [], documents: [] };
+              try {
+                const rawData = localStorage.getItem(`student_portal_user_${acc.id}_data`);
+                if (rawData) {
+                  const pData = JSON.parse(rawData);
+                  userData = {
+                    courses: Array.isArray(pData.courses) ? pData.courses : [],
+                    tasks: Array.isArray(pData.tasks) ? pData.tasks : [],
+                    exams: Array.isArray(pData.exams) ? pData.exams : [],
+                    documents: Array.isArray(pData.documents) ? pData.documents : []
+                  };
+                }
+              } catch {}
+
+              return {
+                ...acc,
+                courses: userData.courses,
+                tasks: userData.tasks,
+                exams: userData.exams,
+                documents: userData.documents
+              };
+            });
+          }
         }
       } catch {}
 

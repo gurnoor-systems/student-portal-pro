@@ -175,7 +175,8 @@ export async function POST(req: NextRequest) {
       body.clientAccounts.forEach((ca: any) => {
         if (ca && ca.email) {
           const eKey = ca.email.trim().toLowerCase();
-          if (!accounts[eKey]) {
+          const existing = accounts[eKey];
+          if (!existing) {
             accounts[eKey] = {
               id: ca.id || `usr_${Date.now()}`,
               email: eKey,
@@ -188,8 +189,29 @@ export async function POST(req: NextRequest) {
               googleCalendarSynced: ca.googleCalendarSynced ?? true,
               createdAt: ca.createdAt || new Date().toISOString(),
               lastLoginAt: ca.lastLoginAt || new Date().toISOString(),
-              activeSessions: ca.activeSessions || []
+              activeSessions: ca.activeSessions || [],
+              courses: Array.isArray(ca.courses) ? ca.courses : [],
+              tasks: Array.isArray(ca.tasks) ? ca.tasks : [],
+              exams: Array.isArray(ca.exams) ? ca.exams : [],
+              documents: Array.isArray(ca.documents) ? ca.documents : []
             };
+          } else {
+            // Non-destructively merge courses, tasks, exams
+            if (Array.isArray(ca.courses) && ca.courses.length > (existing.courses || []).length) {
+              existing.courses = ca.courses;
+            }
+            if (Array.isArray(ca.tasks) && ca.tasks.length > (existing.tasks || []).length) {
+              existing.tasks = ca.tasks;
+            }
+            if (Array.isArray(ca.exams) && ca.exams.length > (existing.exams || []).length) {
+              existing.exams = ca.exams;
+            }
+            if (Array.isArray(ca.documents) && ca.documents.length > (existing.documents || []).length) {
+              existing.documents = ca.documents;
+            }
+            if (Array.isArray(ca.activeSessions) && ca.activeSessions.length > 0) {
+              existing.activeSessions = ca.activeSessions;
+            }
           }
         }
       });
