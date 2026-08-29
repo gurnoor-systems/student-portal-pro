@@ -10,6 +10,15 @@ export interface ActiveDeviceSession {
   isCurrentDevice?: boolean;
 }
 
+export interface PasskeyCredential {
+  credentialId: string;
+  publicKey: string;
+  counter: number;
+  deviceName: string;
+  createdAt: string;
+  lastUsedAt: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -23,10 +32,12 @@ export interface UserProfile {
   googleCalendarSynced: boolean;
   densityPreference?: "comfortable" | "compact";
   avatarUrl?: string;
-  provider: "email" | "google";
+  provider: "email" | "google" | "passkey";
   createdAt: string;
   lastLoginAt?: string;
+  sessionExpiresAt?: string;
   activeSessions?: ActiveDeviceSession[];
+  passkeys?: PasskeyCredential[];
 }
 
 export interface TaskItem {

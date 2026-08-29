@@ -53,6 +53,7 @@ async function getAccountFromSupabase(email: string): Promise<StoredAccount | un
         createdAt: data.created_at || new Date().toISOString(),
         lastLoginAt: data.last_login_at || new Date().toISOString(),
         activeSessions: Array.isArray(data.active_sessions) ? data.active_sessions : [],
+        passkeys: Array.isArray(data.passkeys_json) ? data.passkeys_json : [],
         courses: Array.isArray(data.courses_json) ? data.courses_json : [],
         tasks: Array.isArray(data.tasks_json) ? data.tasks_json : [],
         exams: Array.isArray(data.exams_json) ? data.exams_json : [],
@@ -83,6 +84,7 @@ async function saveAccountToSupabase(acc: StoredAccount): Promise<void> {
       density_preference: acc.densityPreference,
       last_login_at: acc.lastLoginAt,
       active_sessions: acc.activeSessions,
+      passkeys_json: acc.passkeys || [],
       courses_json: acc.courses || [],
       tasks_json: acc.tasks || [],
       exams_json: acc.exams || [],
@@ -109,6 +111,7 @@ interface StoredAccount {
   createdAt: string;
   lastLoginAt?: string;
   activeSessions?: ActiveDeviceSession[];
+  passkeys?: any[];
   courses?: any[];
   tasks?: any[];
   exams?: any[];
@@ -533,6 +536,171 @@ export async function POST(req: NextRequest) {
           documents: account.documents || []
         }
       });
+    }
+
+    // 2.7 PASSKEY REGISTRATION (Register Biometric Credential)
+    if (action === "passkey-register") {
+      const { email, passkey } = body;
+      if (!email || !passkey || !passkey.credentialId) {
+        return NextResponse.json({ error: "Email and passkey credential are required" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail);
+      if (!account) {
+        account = await getAccountFromSupabase(trimmedEmail);
+      }
+
+      if (!account) {
+        return NextResponse.json({ error: "Student account not found" }, { status: 404 });
+      }
+
+      const currentPasskeys = account.passkeys || [];
+      const newPasskeyRecord = {
+        credentialId: passkey.credentialId,
+        publicKey: passkey.publicKey,
+        counter: 0,
+        deviceName: passkey.deviceName || "Biometric Passkey",
+        createdAt: new Date().toISOString(),
+        lastUsedAt: new Date().toISOString()
+      };
+
+      // Filter out duplicate if re-registering
+      account.passkeys = [
+        ...currentPasskeys.filter((p: any) => p.credentialId !== passkey.credentialId),
+        newPasskeyRecord
+      ];
+
+      accountsStore.set(trimmedEmail, account);
+      syncToDisk();
+      await saveAccountToSupabase(account);
+
+      return NextResponse.json({
+        success: true,
+        passkeys: account.passkeys
+      });
+    }
+
+    // 2.8 PASSKEY 1-TOUCH LOGIN (Touch ID / Face ID / Windows Hello Direct Sign-In)
+    if (action === "passkey-login") {
+      const { email, credentialId, deviceInfo } = body;
+      const trimmedEmail = email ? email.trim().toLowerCase() : "";
+
+      let account: StoredAccount | undefined = undefined;
+
+      if (trimmedEmail) {
+        account = accountsStore.get(trimmedEmail) || (await getAccountFromSupabase(trimmedEmail));
+      } else if (credentialId) {
+        // Find account matching credentialId across memory/disk
+        for (const [, acc] of accountsStore.entries()) {
+          if (acc.passkeys && acc.passkeys.some((p: any) => p.credentialId === credentialId)) {
+            account = acc;
+            break;
+          }
+        }
+        if (!account) {
+          const disk = readDiskDB();
+          for (const [, acc] of Object.entries(disk.accounts)) {
+            if (acc.passkeys && acc.passkeys.some((p: any) => p.credentialId === credentialId)) {
+              account = acc;
+              break;
+            }
+          }
+        }
+      }
+
+      if (!account) {
+        return NextResponse.json({
+          success: false,
+          error: "No registered passkey found for this device/account. Please sign in with your email first to register a passkey."
+        }, { status: 200 });
+      }
+
+      const deviceId = deviceInfo?.deviceId || `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const newSession: ActiveDeviceSession = {
+        deviceId,
+        deviceName: deviceInfo?.deviceName || (userAgent.includes("Mobile") ? "Mobile Phone (Passkey)" : "Desktop Computer (Passkey)"),
+        deviceType: deviceInfo?.deviceType || (userAgent.includes("Mobile") ? "mobile" : "desktop"),
+        ipAddress: ip,
+        browser: deviceInfo?.browser || (userAgent.includes("Chrome") ? "Chrome" : userAgent.includes("Safari") ? "Safari" : "Browser"),
+        os: deviceInfo?.os || (userAgent.includes("iPhone") ? "iOS" : userAgent.includes("Android") ? "Android" : userAgent.includes("Windows") ? "Windows" : "macOS"),
+        loginTimestamp: new Date().toISOString(),
+        lastActiveTimestamp: new Date().toISOString()
+      };
+
+      const existingSessions = account.activeSessions || [];
+      const sessionIdx = existingSessions.findIndex(s => s.deviceId === deviceId);
+      if (sessionIdx >= 0) {
+        existingSessions[sessionIdx] = { ...existingSessions[sessionIdx], ...newSession, lastActiveTimestamp: new Date().toISOString() };
+      } else {
+        existingSessions.push(newSession);
+      }
+
+      // Update passkey lastUsedAt
+      if (account.passkeys && credentialId) {
+        const pk = account.passkeys.find((p: any) => p.credentialId === credentialId);
+        if (pk) pk.lastUsedAt = new Date().toISOString();
+      }
+
+      const sessionExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      account.activeSessions = existingSessions;
+      account.lastLoginAt = new Date().toISOString();
+      accountsStore.set(account.email, account);
+      syncToDisk();
+      await saveAccountToSupabase(account);
+
+      return NextResponse.json({
+        success: true,
+        currentDeviceId: deviceId,
+        account: {
+          id: account.id,
+          email: account.email,
+          fullName: account.fullName,
+          university: account.university,
+          degree: account.degree,
+          major: account.major,
+          semester: account.semester,
+          googleCalendarSynced: account.googleCalendarSynced,
+          densityPreference: account.densityPreference,
+          provider: "passkey",
+          createdAt: account.createdAt,
+          lastLoginAt: account.lastLoginAt,
+          sessionExpiresAt,
+          passkeys: account.passkeys || [],
+          activeSessions: existingSessions.map(s => ({
+            ...s,
+            isCurrentDevice: s.deviceId === deviceId
+          }))
+        },
+        userData: {
+          courses: account.courses || [],
+          tasks: account.tasks || [],
+          exams: account.exams || [],
+          documents: account.documents || []
+        }
+      });
+    }
+
+    // 2.9 PASSKEY DELETION
+    if (action === "passkey-delete") {
+      const { email, credentialId } = body;
+      if (!email || !credentialId) {
+        return NextResponse.json({ error: "Email and credentialId are required" }, { status: 400 });
+      }
+
+      const trimmedEmail = email.trim().toLowerCase();
+      let account = accountsStore.get(trimmedEmail) || (await getAccountFromSupabase(trimmedEmail));
+      if (!account) {
+        return NextResponse.json({ error: "Account not found" }, { status: 404 });
+      }
+
+      account.passkeys = (account.passkeys || []).filter((p: any) => p.credentialId !== credentialId);
+      accountsStore.set(trimmedEmail, account);
+      syncToDisk();
+      await saveAccountToSupabase(account);
+
+      return NextResponse.json({ success: true, passkeys: account.passkeys });
     }
 
     // 3. FETCH LATEST / HEARTBEAT (Real-time Cross-Device Sync)

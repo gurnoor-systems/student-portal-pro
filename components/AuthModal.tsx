@@ -81,6 +81,7 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
     signUpWithPassword, 
     signInWithGoogleCustom, 
     signInWithGoogleDirect,
+    signInWithPasskey,
     resendEmailConfirmation,
     sendPasswordResetEmail,
     resetPasswordWithCode
@@ -1022,6 +1023,30 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
           /* VIEW 3: SIGN IN TAB (STRICT REGISTRATION GATE + FORGOT PASSWORD LINK)     */
           /* ========================================================================= */
           <div className="space-y-4">
+            {/* 1-Touch Passkey Biometric Sign In */}
+            <button
+              type="button"
+              onClick={async () => {
+                setError(null);
+                setLoading(true);
+                const res = await signInWithPasskey(email);
+                setLoading(false);
+                if (res.success) {
+                  onClose();
+                } else {
+                  setError(res.error || "Biometric authentication failed.");
+                }
+              }}
+              disabled={loading}
+              className="w-full h-12 border border-purple-500/40 bg-gradient-to-r from-purple-950/40 via-[#141b24] to-blue-950/40 hover:border-purple-400 hover:from-purple-900/50 text-white text-xs font-bold tracking-[0.5px] uppercase flex items-center justify-center gap-2.5 transition-all cursor-pointer rounded-xl shadow-lg shadow-purple-500/10 group"
+            >
+              <KeyRound className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+              <span>SIGN IN WITH PASSKEY / FACE ID / TOUCH ID</span>
+              <span className="ml-auto text-[9px] font-mono px-2 py-0.5 bg-purple-500/20 text-purple-300 rounded-md border border-purple-500/30">
+                1-Touch
+              </span>
+            </button>
+
             <button
               onClick={() => {
                 setGoogleSignInEmail(email || "");
@@ -1040,9 +1065,9 @@ export default function AuthModal({ isOpen, onClose, initialTab = "signin" }: Au
               <span>SIGN IN WITH GOOGLE</span>
             </button>
 
-            <div className="flex items-center my-4">
+            <div className="flex items-center my-3">
               <div className="flex-1 border-t border-white/10" />
-              <span className="px-3 text-[10px] font-mono text-slate-500 uppercase">OR WITH STUDENT EMAIL</span>
+              <span className="px-3 text-[10px] font-mono text-slate-500 uppercase">OR WITH PASSWORD</span>
               <div className="flex-1 border-t border-white/10" />
             </div>
 

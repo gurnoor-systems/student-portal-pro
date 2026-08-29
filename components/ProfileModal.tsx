@@ -74,6 +74,8 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
     changePassword, 
     sendPasswordResetEmail,
     resetPasswordWithCode,
+    registerPasskey,
+    deletePasskey,
     rolloverSemester,
     deleteAccount,
     revokeDeviceSession,
@@ -86,6 +88,10 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
   const [openFaqId, setOpenFaqId] = useState<string | null>("faq-1");
   const [deviceActionLoading, setDeviceActionLoading] = useState<string | null>(null);
   const [deviceSyncFeedback, setDeviceSyncFeedback] = useState<string | null>(null);
+
+  // Passkey Biometrics State
+  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
+  const [passkeyFeedback, setPasskeyFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Delete Account Confirmation States
   const [isDeleteAccountOpen, setIsDeleteAccountOpen] = useState(false);
@@ -610,6 +616,128 @@ export default function ProfileModal({ isOpen, onClose, initialTab = "subjects" 
           {activeTab === "security" && (
             <div className="space-y-6 animate-in fade-in duration-150">
               
+              {/* 30-Day Long-Lived Session Status Banner */}
+              <div className="p-4 bg-gradient-to-r from-blue-950/30 via-[#141b24] to-emerald-950/30 border border-blue-500/30 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    <span>30-Day Long-Lived Session Active</span>
+                  </div>
+                  <span className="px-2 py-0.5 text-[9px] font-mono font-bold uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded">
+                    Persistent Auth
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Your student portal session stays active for <strong className="text-white">30 days</strong> on this device so you can study without interruption. High-sensitivity actions (password change, account removal) require re-verification.
+                </p>
+                {user.sessionExpiresAt && (
+                  <div className="text-[10px] font-mono text-slate-400 pt-1 border-t border-white/5">
+                    Session Expiration: {new Date(user.sessionExpiresAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                )}
+              </div>
+
+              {/* Biometric Passkeys (Face ID / Touch ID / Windows Hello) Manager */}
+              <div className="p-4 bg-[#141b24] border border-purple-500/30 rounded-xl space-y-4 shadow-sm">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-white text-xs uppercase tracking-wider flex items-center gap-2">
+                      <KeyRound className="w-4 h-4 text-purple-400" />
+                      <span>Biometric Passkeys (Face ID / Touch ID)</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Sign in in under 1 second using your device's fingerprint, Face ID, or Windows Hello.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isRegisteringPasskey}
+                    onClick={async () => {
+                      setIsRegisteringPasskey(true);
+                      setPasskeyFeedback(null);
+                      const res = await registerPasskey();
+                      setIsRegisteringPasskey(false);
+                      if (res.success) {
+                        setPasskeyFeedback({ type: "success", text: "Biometric passkey registered successfully for this device!" });
+                      } else {
+                        setPasskeyFeedback({ type: "error", text: res.error || "Failed to register passkey." });
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-md shadow-purple-600/20"
+                  >
+                    {isRegisteringPasskey ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Prompting Biometrics...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Passkey</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {passkeyFeedback && (
+                  <div className={`p-2.5 rounded text-[11px] font-mono ${
+                    passkeyFeedback.type === "success" 
+                      ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-300"
+                      : "bg-red-500/15 border border-red-500/30 text-red-300"
+                  }`}>
+                    {passkeyFeedback.text}
+                  </div>
+                )}
+
+                {/* Registered Passkeys List */}
+                <div className="space-y-2">
+                  <div className="text-[10px] font-mono uppercase text-slate-400">
+                    REGISTERED PASSKEYS ({user.passkeys?.length || 0})
+                  </div>
+
+                  {user.passkeys && user.passkeys.length > 0 ? (
+                    <div className="space-y-2">
+                      {user.passkeys.map(pk => (
+                        <div
+                          key={pk.credentialId}
+                          className="p-3 bg-[#090d12] border border-white/10 rounded-xl flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-lg bg-purple-500/15 text-purple-400">
+                              <KeyRound className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="text-xs font-bold text-white">{pk.deviceName || "Biometric Authenticator"}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">
+                                Registered on {new Date(pk.createdAt).toLocaleDateString()} • ID: {pk.credentialId.substring(0, 12)}...
+                              </div>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const ok = await deletePasskey(pk.credentialId);
+                              if (ok) {
+                                setPasskeyFeedback({ type: "success", text: "Passkey removed." });
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                            title="Remove Passkey"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-[#090d12] border border-white/5 rounded-xl text-center text-slate-400 text-xs">
+                      No biometric passkeys registered on this account yet. Click <strong>"Add Passkey"</strong> above to enable 1-touch Face ID / Touch ID sign-in on this device.
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Change Password Form */}
               <form onSubmit={handleChangePassword} className="p-4 bg-[#141b24] border border-white/10 rounded-xl space-y-3.5">
                 <div className="space-y-0.5 border-b border-white/10 pb-2.5">

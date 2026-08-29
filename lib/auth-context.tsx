@@ -1,8 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
-import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount } from "@/lib/types";
+import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount, PasskeyCredential } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
+import { PasskeyService } from "@/lib/passkey-service";
 
 export * from "@/lib/types";
 
@@ -29,14 +30,14 @@ export function getDeviceDetails(): { deviceId: string; deviceName: string; devi
   }
   let deviceId = localStorage.getItem("student_portal_device_id");
   if (!deviceId) {
-    deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     localStorage.setItem("student_portal_device_id", deviceId);
   }
-  const ua = navigator.userAgent || "";
+  const ua = navigator.userAgent;
   const isMobile = /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(ua);
   const isTablet = /iPad|Tablet/i.test(ua);
   const deviceType: "mobile" | "desktop" | "tablet" = isTablet ? "tablet" : isMobile ? "mobile" : "desktop";
-
+  
   let browser = "Browser";
   if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
   else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
@@ -44,15 +45,20 @@ export function getDeviceDetails(): { deviceId: string; deviceName: string; devi
   else if (ua.includes("Firefox")) browser = "Firefox";
 
   let os = "Desktop";
-  if (ua.includes("iPhone")) os = "iPhone";
-  else if (ua.includes("iPad")) os = "iPad";
+  if (ua.includes("iPhone")) os = "iOS";
+  else if (ua.includes("iPad")) os = "iPadOS";
   else if (ua.includes("Android")) os = "Android";
-  else if (ua.includes("Windows")) os = "Windows PC";
-  else if (ua.includes("Macintosh")) os = "Mac";
+  else if (ua.includes("Windows")) os = "Windows";
+  else if (ua.includes("Mac")) os = "macOS";
+  else if (ua.includes("Linux")) os = "Linux";
 
-  const deviceName = `${os} • ${browser}`;
-
-  return { deviceId, deviceName, deviceType, browser, os };
+  return {
+    deviceId,
+    deviceName: `${browser} on ${os}`,
+    deviceType,
+    browser,
+    os
+  };
 }
 
 interface AuthContextType {
@@ -86,6 +92,9 @@ interface AuthContextType {
     googleEmail: string,
     googleIdToken?: string
   ) => Promise<{ success: boolean; error?: string; notFound?: boolean; email?: string }>;
+  signInWithPasskey: (email?: string) => Promise<{ success: boolean; error?: string }>;
+  registerPasskey: () => Promise<{ success: boolean; error?: string }>;
+  deletePasskey: (credentialId: string) => Promise<boolean>;
   signOut: () => Promise<void>;
   resendEmailConfirmation: (email: string) => Promise<{ success: boolean; error?: string }>;
   toggleGoogleCalendarSync: (enabled: boolean) => Promise<boolean>;
@@ -206,6 +215,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (parsed && parsed.id && parsed.email) {
           const deviceInfo = getDeviceDetails();
           
+          // 30-Day Long-Lived Session Check
+          if (parsed.sessionExpiresAt && new Date(parsed.sessionExpiresAt).getTime() < Date.now()) {
+            localStorage.removeItem("student_portal_active_user");
+            setUser(null);
+            setIsLoading(false);
+            return;
+          }
+
           // Auto-upgrade schema for existing accounts (Feature Backfill)
           const upgradedProfile: UserProfile = {
             ...parsed,
@@ -215,6 +232,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             major: parsed.major || "Computer Science",
             densityPreference: parsed.densityPreference || "comfortable",
             googleCalendarSynced: parsed.googleCalendarSynced ?? true,
+            sessionExpiresAt: parsed.sessionExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+            passkeys: Array.isArray(parsed.passkeys) ? parsed.passkeys : [],
             activeSessions: Array.isArray(parsed.activeSessions) && parsed.activeSessions.length > 0
               ? parsed.activeSessions.map(s => ({
                   ...s,
@@ -897,6 +916,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // 1-Touch Passkey / Biometric Sign In
+  const signInWithPasskey = async (email?: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const assertion = await PasskeyService.authenticate();
+      if (!assertion) {
+        return { success: false, error: "Biometric authentication cancelled." };
+      }
+
+      const deviceInfo = getDeviceDetails();
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "passkey-login",
+          email: email || undefined,
+          credentialId: assertion.credentialId,
+          deviceInfo
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.account) {
+        const serverAcc = data.account;
+        const profile: UserProfile = {
+          id: serverAcc.id,
+          email: serverAcc.email,
+          fullName: serverAcc.fullName,
+          emailVerified: true,
+          googleVerified: true,
+          university: serverAcc.university,
+          degree: serverAcc.degree || "Bachelor of Technology (B.Tech)",
+          major: serverAcc.major,
+          semester: serverAcc.semester || "Fall 2026",
+          googleCalendarSynced: serverAcc.googleCalendarSynced ?? true,
+          densityPreference: serverAcc.densityPreference || "comfortable",
+          provider: "passkey",
+          createdAt: serverAcc.createdAt,
+          lastLoginAt: new Date().toISOString(),
+          sessionExpiresAt: serverAcc.sessionExpiresAt || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          activeSessions: serverAcc.activeSessions || [],
+          passkeys: serverAcc.passkeys || []
+        };
+
+        setUser(profile);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
+
+        if (data.userData) {
+          localStorage.setItem(`student_portal_user_${serverAcc.id}_data`, JSON.stringify(data.userData));
+          setUserData(data.userData);
+        } else {
+          ensureUserDataSeeded(serverAcc.id);
+          loadUserData(serverAcc.id);
+        }
+
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "Passkey login failed." };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Biometric authentication failed or was cancelled." };
+    }
+  };
+
+  // Register Passkey on Current Device
+  const registerPasskey = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: "Must be logged in to register a passkey." };
+
+    try {
+      const passkey = await PasskeyService.registerPasskey(user.email, user.fullName, user.id);
+      if (!passkey) {
+        return { success: false, error: "Failed to create passkey." };
+      }
+
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "passkey-register",
+          email: user.email,
+          passkey
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        const updatedUser: UserProfile = {
+          ...user,
+          passkeys: data.passkeys || []
+        };
+        setUser(updatedUser);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(updatedUser));
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || "Failed to save passkey on server." };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || "Passkey registration failed or was cancelled." };
+    }
+  };
+
+  // Delete Passkey from Account
+  const deletePasskey = async (credentialId: string): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const res = await fetch("/api/auth/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "passkey-delete",
+          email: user.email,
+          credentialId
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updatedUser: UserProfile = {
+          ...user,
+          passkeys: data.passkeys || (user.passkeys || []).filter(p => p.credentialId !== credentialId)
+        };
+        setUser(updatedUser);
+        localStorage.setItem("student_portal_active_user", JSON.stringify(updatedUser));
+        return true;
+      }
+    } catch {}
+    return false;
+  };
+
   const resendEmailConfirmation = async (email: string): Promise<{ success: boolean; error?: string }> => {
     await simulateNetworkLatency(500);
     const supabase = createClient();
@@ -1442,6 +1589,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signUpWithPassword,
       signInWithGoogleCustom,
       signInWithGoogleDirect,
+      signInWithPasskey,
+      registerPasskey,
+      deletePasskey,
       resendEmailConfirmation,
       toggleGoogleCalendarSync,
       toggleDensityPreference,
