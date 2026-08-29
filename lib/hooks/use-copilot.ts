@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { UserProfile, UserData } from "@/lib/types";
 
 export interface AgentActionItem {
