@@ -54,6 +54,8 @@ export interface TaskItem {
   category: string;
   syncedToCalendar?: boolean;
   subtasks?: Array<{ id: string; title: string; completed: boolean }>;
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface ExamItem {
@@ -65,6 +67,8 @@ export interface ExamItem {
   weightPercent: number;
   location?: string;
   topics: string[];
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface CourseItem {
@@ -76,6 +80,8 @@ export interface CourseItem {
   meetingLink?: string;
   meetingPlatform?: "meet" | "zoom" | "teams";
   scheduleTime?: string;
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface MaterialItem {
@@ -86,6 +92,8 @@ export interface MaterialItem {
   fileSize: string;
   fileType: string;
   uploadedAt: string;
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
 export interface StudyMilestone {

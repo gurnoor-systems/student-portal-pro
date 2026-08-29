@@ -3,11 +3,12 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { createClient } from "@supabase/supabase-js";
-import { ActiveDeviceSession } from "@/lib/types";
+import { ActiveDeviceSession, UserData } from "@/lib/types";
 import { sendPasswordResetEmailViaResend } from "@/lib/email-service";
 import { hashPassword, verifyPassword } from "@/lib/password-security";
 import { verifyGoogleIdToken } from "@/lib/google-auth-verifier";
 import { checkRateLimit, clearRateLimit } from "@/lib/rate-limiter";
+import { LWWMergeEngine } from "@/lib/services/lww-merge-engine";
 
 // Dual-layer Persistent Store (In-Memory + Disk File Database + Supabase Cloud Sync)
 // Supports Concurrent Multi-Device Sessions:
@@ -993,33 +994,26 @@ export async function POST(req: NextRequest) {
       }
 
       if (account) {
-        // Intelligent ID-based merge for tasks (prevents multi-device overwrite race)
-        if (Array.isArray(userData.tasks)) {
-          const taskMap = new Map<string, any>();
-          (account.tasks || []).forEach((t: any) => { if (t?.id) taskMap.set(t.id, t); });
-          userData.tasks.forEach((t: any) => { if (t?.id) taskMap.set(t.id, t); });
-          account.tasks = Array.from(taskMap.values());
-        }
+        // Optimistic Last-Write-Wins (LWW) Multi-Device Auto-Merge
+        const currentServerData: UserData = {
+          courses: account.courses || [],
+          tasks: account.tasks || [],
+          exams: account.exams || [],
+          documents: account.documents || []
+        };
 
-        // Intelligent ID-based merge for exams
-        if (Array.isArray(userData.exams)) {
-          const examMap = new Map<string, any>();
-          (account.exams || []).forEach((e: any) => { if (e?.id) examMap.set(e.id, e); });
-          userData.exams.forEach((e: any) => { if (e?.id) examMap.set(e.id, e); });
-          account.exams = Array.from(examMap.values());
-        }
+        const incomingUserData: UserData = {
+          courses: Array.isArray(userData.courses) ? userData.courses : [],
+          tasks: Array.isArray(userData.tasks) ? userData.tasks : [],
+          exams: Array.isArray(userData.exams) ? userData.exams : [],
+          documents: Array.isArray(userData.documents) ? userData.documents : []
+        };
 
-        // Intelligent ID-based merge for course documents & materials
-        if (Array.isArray(userData.documents)) {
-          const docMap = new Map<string, any>();
-          (account.documents || []).forEach((d: any) => { if (d?.id) docMap.set(d.id, d); });
-          userData.documents.forEach((d: any) => { if (d?.id) docMap.set(d.id, d); });
-          account.documents = Array.from(docMap.values());
-        }
-
-        if (Array.isArray(userData.courses) && userData.courses.length > 0) {
-          account.courses = userData.courses;
-        }
+        const { merged } = LWWMergeEngine.mergeUserData(currentServerData, incomingUserData);
+        account.courses = merged.courses;
+        account.tasks = merged.tasks;
+        account.exams = merged.exams;
+        account.documents = merged.documents;
 
         accountsStore.set(trimmedEmail, account);
         syncToDisk();

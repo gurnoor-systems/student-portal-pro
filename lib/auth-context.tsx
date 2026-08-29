@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { UserProfile, TaskItem, ExamItem, CourseItem, RegisteredAccount, PasskeyCredential } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 import { PasskeyService } from "@/lib/passkey-service";
+import { LWWMergeEngine } from "@/lib/services/lww-merge-engine";
 
 export * from "@/lib/types";
 
@@ -1112,10 +1113,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addTask = useCallback((task: Omit<TaskItem, "id" | "userId">): TaskItem => {
     const userId = user ? user.id : "guest";
+    const now = new Date().toISOString();
     const newTask: TaskItem = {
       ...task,
       id: `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId
+      userId,
+      updatedAt: now
     };
 
     const next = { ...userData, tasks: [newTask, ...userData.tasks] };
@@ -1128,7 +1131,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, userData, persistUserData]);
 
   const updateTask = useCallback((taskId: string, updates: Partial<TaskItem>) => {
-    const updatedTasks = userData.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t);
+    const now = new Date().toISOString();
+    const updatedTasks = userData.tasks.map(t => t.id === taskId ? { ...t, ...updates, updatedAt: now } : t);
     const next = { ...userData, tasks: updatedTasks };
     if (user) {
       persistUserData(user.id, next);
@@ -1138,10 +1142,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, userData, persistUserData]);
 
   const deleteTask = useCallback((taskId: string) => {
+    const now = new Date().toISOString();
+    const target = userData.tasks.find(t => t.id === taskId);
     const filteredTasks = userData.tasks.filter(t => t.id !== taskId);
     const next = { ...userData, tasks: filteredTasks };
     if (user) {
       persistUserData(user.id, next);
+      if (target) {
+        SyncService.persistUserData(user.id, user.email, {
+          ...userData,
+          tasks: [{ ...target, deletedAt: now }]
+        });
+      }
     } else {
       setUserData(next);
     }
@@ -1149,10 +1161,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addCourse = useCallback((course: Omit<CourseItem, "id" | "userId">): CourseItem => {
     const userId = user ? user.id : "guest";
+    const now = new Date().toISOString();
     const newCourse: CourseItem = {
       ...course,
       id: `course_${Date.now()}`,
-      userId
+      userId,
+      updatedAt: now
     };
 
     const next = { ...userData, courses: [...userData.courses, newCourse] };
@@ -1165,10 +1179,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, userData, persistUserData]);
 
   const deleteCourse = useCallback((courseId: string) => {
+    const now = new Date().toISOString();
+    const target = userData.courses.find(c => c.id === courseId);
     const filteredCourses = userData.courses.filter(c => c.id !== courseId);
     const next = { ...userData, courses: filteredCourses };
     if (user) {
       persistUserData(user.id, next);
+      if (target) {
+        SyncService.persistUserData(user.id, user.email, {
+          ...userData,
+          courses: [{ ...target, deletedAt: now }]
+        });
+      }
     } else {
       setUserData(next);
     }
@@ -1176,10 +1198,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addExam = useCallback((exam: Omit<ExamItem, "id" | "userId">): ExamItem => {
     const userId = user ? user.id : "guest";
+    const now = new Date().toISOString();
     const newExam: ExamItem = {
       ...exam,
       id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      userId
+      userId,
+      updatedAt: now
     };
 
     const next = { ...userData, exams: [...userData.exams, newExam] };
@@ -1192,10 +1216,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, userData, persistUserData]);
 
   const deleteExam = useCallback((examId: string) => {
+    const now = new Date().toISOString();
+    const target = userData.exams.find(e => e.id === examId);
     const filteredExams = userData.exams.filter(e => e.id !== examId);
     const next = { ...userData, exams: filteredExams };
     if (user) {
       persistUserData(user.id, next);
+      if (target) {
+        SyncService.persistUserData(user.id, user.email, {
+          ...userData,
+          exams: [{ ...target, deletedAt: now }]
+        });
+      }
     } else {
       setUserData(next);
     }
@@ -1408,8 +1440,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(updated);
         localStorage.setItem("student_portal_active_user", JSON.stringify(updated));
         if (data.userData) {
-          setUserData(data.userData);
-          localStorage.setItem(`student_portal_user_${user.id}_data`, JSON.stringify(data.userData));
+          const { merged, hasChanges } = LWWMergeEngine.mergeUserData(userData, data.userData);
+          if (hasChanges) {
+            setUserData(merged);
+            localStorage.setItem(`student_portal_user_${user.id}_data`, JSON.stringify(merged));
+          }
         }
       }
     } catch (err) {
