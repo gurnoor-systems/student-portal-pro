@@ -306,7 +306,8 @@ export async function POST(req: NextRequest) {
       syncToDisk();
       await saveAccountToSupabase(record);
 
-      return NextResponse.json({ success: true, account: record, deviceSession });
+      const { passwordHash: _ph, resetPin: _rp, ...sanitizedRecord } = record;
+      return NextResponse.json({ success: true, account: sanitizedRecord, deviceSession });
     }
 
     // 2. LOGIN (Concurrent Multi-Device Session Addition)

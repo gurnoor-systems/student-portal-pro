@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef } from "react";
 import { useAuth, TaskItem } from "@/lib/auth-context";
 import { playSuccessChime } from "@/lib/audio";
 import { fireMilestoneConfetti } from "@/lib/confetti";
 import { useToast } from "@/lib/toast-context";
+import { useCopilot, AgentActionItem } from "@/lib/hooks/use-copilot";
 import { 
   Bot, 
   User, 
@@ -27,20 +28,6 @@ import {
   Coffee
 } from "lucide-react";
 
-interface AgentActionItem {
-  type: "CREATE_TASK" | "SCHEDULE_ROUTINE" | "START_FOCUS" | "COMPLETE_TASK" | "NAVIGATE_TAB";
-  payload: Record<string, any>;
-  summary: string;
-}
-
-interface AgentMessage {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  actions?: AgentActionItem[];
-  timestamp: string;
-}
-
 interface AcademicAIAgentProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,38 +45,11 @@ export default function AcademicAIAgent({
 }: AcademicAIAgentProps) {
   const { user, userData, addTask, updateTask } = useAuth();
   const { showToast } = useToast();
-  const [messages, setMessages] = useState<AgentMessage[]>([
-    {
-      id: "msg_init",
-      role: "assistant",
-      content: `Hello ${user?.fullName?.split(" ")[0] || "there"}! 👋 I am your **Academic AI Copilot**.\n\nI have full live awareness of your **${userData.courses.length} courses**, **${userData.tasks.filter(t => t.status !== "completed").length} active assignments**, and daily routine.\n\nHow can I help your studies today?`,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    }
-  ]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  // Auto-scroll on new message
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
-
-  // Focus input or auto-send initialPrompt when opened
-  useEffect(() => {
-    if (isOpen) {
-      if (initialPrompt && initialPrompt.trim()) {
-        handleSendMessage(initialPrompt);
-      } else {
-        setTimeout(() => inputRef.current?.focus(), 100);
-      }
-    }
-  }, [isOpen, initialPrompt]);
-
   // Execute in-app actions returned by the AI agent
-  const executeAgentAction = (action: AgentActionItem) => {
+  const handleExecuteAction = (action: AgentActionItem) => {
     try {
       if (action.type === "CREATE_TASK") {
         const payload = action.payload;
@@ -166,131 +126,36 @@ export default function AcademicAIAgent({
     }
   };
 
-  // Submit Prompt
-  const handleSendMessage = async (textToSend?: string) => {
-    const query = (textToSend || input).trim();
-    if (!query || isLoading) return;
+  // Modular Headless Hook
+  const {
+    messages,
+    input,
+    setInput,
+    isLoading,
+    isListening,
+    sendMessage,
+    toggleVoiceInput
+  } = useCopilot({
+    user,
+    userData,
+    onExecuteAction: handleExecuteAction
+  });
 
-    const userMsg: AgentMessage = {
-      id: `usr_${Date.now()}`,
-      role: "user",
-      content: query,
-      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    };
+  // Auto-scroll on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isLoading]);
 
-    setMessages(prev => [...prev, userMsg]);
-    setInput("");
-    setIsLoading(true);
-
-    try {
-      // Gather live in-app context
-      const todayStr = new Date().toISOString().split("T")[0];
-      const storageKey = user ? `student_portal_user_${user.id}_routine_${todayStr}` : `student_portal_routine_${todayStr}`;
-      let liveRoutines = [];
-      try {
-        const raw = localStorage.getItem(storageKey);
-        if (raw) liveRoutines = JSON.parse(raw);
-      } catch {}
-
-      const res = await fetch("/api/agent/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: query,
-          history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
-          context: {
-            userName: user?.fullName || "Student",
-            university: user?.university,
-            major: user?.major || user?.degree,
-            semester: user?.semester,
-            courses: userData.courses || [],
-            tasks: userData.tasks || [],
-            exams: userData.exams || [],
-            routines: liveRoutines
-          }
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        const assistantMsg: AgentMessage = {
-          id: `ai_${Date.now()}`,
-          role: "assistant",
-          content: data.reply,
-          actions: data.actions || [],
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        };
-
-        setMessages(prev => [...prev, assistantMsg]);
-
-        // Auto-execute returned actions
-        if (data.actions && Array.isArray(data.actions)) {
-          data.actions.forEach((act: any) => executeAgentAction(act));
-        }
+  // Focus input or auto-send initialPrompt when opened
+  useEffect(() => {
+    if (isOpen) {
+      if (initialPrompt && initialPrompt.trim()) {
+        sendMessage(initialPrompt);
       } else {
-        setMessages(prev => [
-          ...prev,
-          {
-            id: `err_${Date.now()}`,
-            role: "assistant",
-            content: "Sorry, I had trouble processing that request. Please try again.",
-            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          }
-        ]);
+        setTimeout(() => inputRef.current?.focus(), 100);
       }
-    } catch (err) {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `err_${Date.now()}`,
-          role: "assistant",
-          content: "Network error connecting to AI agent. Please check your connection.",
-          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-        }
-      ]);
-    } finally {
-      setIsLoading(false);
     }
-  };
-
-  // Web Speech API Voice Recognition
-  const toggleVoiceInput = () => {
-    if (typeof window === "undefined") return;
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice recognition is not supported in this browser.");
-      return;
-    }
-
-    if (isListening) {
-      setIsListening(false);
-      return;
-    }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = "en-US";
-
-      recognition.onstart = () => setIsListening(true);
-      recognition.onend = () => setIsListening(false);
-      recognition.onerror = () => setIsListening(false);
-
-      recognition.onresult = (event: any) => {
-        const transcript = event.results?.[0]?.[0]?.transcript;
-        if (transcript) {
-          setInput(transcript);
-          handleSendMessage(transcript);
-        }
-      };
-
-      recognition.start();
-    } catch {
-      setIsListening(false);
-    }
-  };
+  }, [isOpen, initialPrompt, sendMessage]);
 
   // Quick Prompt Suggestions
   const quickPrompts = [
@@ -403,7 +268,7 @@ export default function AcademicAIAgent({
           {quickPrompts.map((qp, idx) => (
             <button
               key={idx}
-              onClick={() => handleSendMessage(qp.query)}
+              onClick={() => sendMessage(qp.query)}
               disabled={isLoading}
               className="px-2.5 py-1.5 bg-[var(--canvas)] hover:bg-[var(--surface-strong)] border border-[var(--hairline)] hover:border-[var(--primary)] text-[11px] font-bold text-[var(--ink)] rounded-xl whitespace-nowrap transition-all flex-shrink-0 cursor-pointer"
             >
@@ -417,7 +282,7 @@ export default function AcademicAIAgent({
           <form
             onSubmit={e => {
               e.preventDefault();
-              handleSendMessage();
+              sendMessage();
             }}
             className="flex items-center gap-2"
           >
