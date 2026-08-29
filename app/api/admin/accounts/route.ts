@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Sync from Supabase PostgreSQL profiles table
+    // Sync from Supabase PostgreSQL profiles table & Auth Users
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
@@ -115,10 +115,10 @@ export async function POST(req: NextRequest) {
                   email: emailKey,
                   passwordHash: p.password_hash || "OAuth Verified",
                   fullName: p.full_name || "Student",
-                  university: p.university || "University of Waterloo",
+                  university: p.university || "University of Delhi",
                   degree: p.degree || "Bachelor of Technology (B.Tech)",
                   major: p.major || "Computer Science",
-                  semester: p.semester || "Fall 2026",
+                  semester: p.semester || "Semester 1",
                   googleCalendarSynced: p.google_calendar_synced ?? true,
                   createdAt: p.created_at || new Date().toISOString(),
                   lastLoginAt: p.last_login_at || new Date().toISOString(),
@@ -132,9 +132,68 @@ export async function POST(req: NextRequest) {
             }
           });
         }
+
+        // Also discover users registered directly in Supabase Auth
+        if (supabase.auth?.admin) {
+          const { data: authUsers } = await supabase.auth.admin.listUsers();
+          if (authUsers && Array.isArray(authUsers.users)) {
+            authUsers.users.forEach((u: any) => {
+              if (u.email) {
+                const emailKey = u.email.trim().toLowerCase();
+                if (!accounts[emailKey]) {
+                  const meta = u.user_metadata || {};
+                  accounts[emailKey] = {
+                    id: u.id,
+                    email: emailKey,
+                    passwordHash: "Supabase Auth",
+                    fullName: meta.full_name || "Student",
+                    university: meta.university || "University of Delhi",
+                    degree: meta.degree || "Bachelor of Technology (B.Tech)",
+                    major: meta.major || "Computer Science",
+                    semester: meta.semester || "Semester 1",
+                    googleCalendarSynced: meta.google_calendar_synced ?? true,
+                    createdAt: u.created_at || new Date().toISOString(),
+                    lastLoginAt: u.last_sign_in_at || new Date().toISOString(),
+                    activeSessions: [],
+                    courses: [],
+                    tasks: [],
+                    exams: [],
+                    documents: []
+                  };
+                }
+              }
+            });
+          }
+        }
       } catch (err) {
-        console.warn("Admin Supabase profiles sync notice:", err);
+        console.warn("Admin Supabase sync notice:", err);
       }
+    }
+
+    // Support client accounts reconciliation passed by Admin browser
+    if (Array.isArray(body.clientAccounts) && body.clientAccounts.length > 0) {
+      body.clientAccounts.forEach((ca: any) => {
+        if (ca && ca.email) {
+          const eKey = ca.email.trim().toLowerCase();
+          if (!accounts[eKey]) {
+            accounts[eKey] = {
+              id: ca.id || `usr_${Date.now()}`,
+              email: eKey,
+              passwordHash: ca.passwordHash || "Verified",
+              fullName: ca.fullName || "Student",
+              university: ca.university || "University of Delhi",
+              degree: ca.degree || "Bachelor of Technology (B.Tech)",
+              major: ca.major || "Computer Science",
+              semester: ca.semester || "Semester 1",
+              googleCalendarSynced: ca.googleCalendarSynced ?? true,
+              createdAt: ca.createdAt || new Date().toISOString(),
+              lastLoginAt: ca.lastLoginAt || new Date().toISOString(),
+              activeSessions: ca.activeSessions || []
+            };
+          }
+        }
+      });
+      writeDiskAccounts(accounts);
     }
 
     // 1. FETCH ALL ACCOUNTS & CONNECTED DEVICES
@@ -144,10 +203,10 @@ export async function POST(req: NextRequest) {
         email: acc.email,
         passwordHash: acc.passwordHash || "OAuth Verified",
         fullName: acc.fullName || "Student",
-        university: acc.university || "University of Waterloo",
+        university: acc.university || "University of Delhi",
         degree: acc.degree || "B.Tech in Computer Science",
         major: acc.major || "Computer Science",
-        semester: acc.semester || "Fall 2026",
+        semester: acc.semester || "Semester 1",
         googleCalendarSynced: acc.googleCalendarSynced ?? true,
         createdAt: acc.createdAt || new Date().toISOString(),
         lastLoginAt: acc.lastLoginAt || new Date().toISOString(),

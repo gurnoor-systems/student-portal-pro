@@ -553,6 +553,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("student_portal_active_user", JSON.stringify(profile));
     ensureUserDataSeeded(profile.id);
     loadUserData(profile.id);
+
+    // Auto-Sync to Server Repository for Admin Console & Multi-Device Tracking
+    fetch("/api/auth/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "register",
+        account: matchingAccount,
+        deviceInfo
+      })
+    }).catch(() => {});
+
     return { success: true };
   };
 
