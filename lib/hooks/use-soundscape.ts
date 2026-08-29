@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { soundscapeEngine, SoundscapeType, SOUNDSCAPE_OPTIONS } from "@/lib/soundscapes";
 
 export function useSoundscape() {
-  const [activeSoundscape, setActiveSoundscape] = useState<SoundscapeType>("parisian_cafe");
+  const [activeSoundscape, setActiveSoundscape] = useState<SoundscapeType>("cafe");
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolume] = useState<number>(0.7);
   const [isMuted, setIsMuted] = useState<boolean>(false);

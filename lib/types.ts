@@ -165,5 +165,5 @@ export interface UserData {
   courses: CourseItem[];
   tasks: TaskItem[];
   exams: ExamItem[];
-  documents: MaterialItem[];
+  documents?: any[];
 }
