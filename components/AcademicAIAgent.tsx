@@ -28,6 +28,108 @@ import {
   Coffee
 } from "lucide-react";
 
+interface FormattedMessageProps {
+  content: string;
+  onSelectPrompt?: (prompt: string) => void;
+}
+
+function FormattedMessage({ content, onSelectPrompt }: FormattedMessageProps) {
+  if (!content) return null;
+
+  const renderInline = (text: string) => {
+    // Parse `code` and **bold**
+    const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g);
+    return parts.map((part, idx) => {
+      if (part.startsWith("`") && part.endsWith("`")) {
+        return (
+          <code key={idx} className="px-1.5 py-0.5 bg-[var(--canvas)] text-[var(--primary)] font-mono text-[11px] rounded border border-[var(--hairline)]">
+            {part.slice(1, -1)}
+          </code>
+        );
+      }
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={idx} className="font-bold text-[var(--ink)]">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      return <span key={idx}>{part}</span>;
+    });
+  };
+
+  const lines = content.split("\n");
+
+  return (
+    <div className="space-y-1.5 text-xs sm:text-sm text-[var(--ink)]">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={idx} className="h-1" />;
+
+        // Header 3
+        if (trimmed.startsWith("### ")) {
+          return (
+            <h3 key={idx} className="font-bold text-sm text-[var(--ink)] pt-1 pb-0.5">
+              {renderInline(trimmed.replace(/^###\s+/, ""))}
+            </h3>
+          );
+        }
+
+        // Header 4
+        if (trimmed.startsWith("#### ")) {
+          return (
+            <h4 key={idx} className="font-bold text-xs uppercase tracking-wider text-[var(--primary)] pt-1">
+              {renderInline(trimmed.replace(/^####\s+/, ""))}
+            </h4>
+          );
+        }
+
+        // Divider
+        if (trimmed === "---" || trimmed === "***") {
+          return <hr key={idx} className="border-[var(--hairline)] my-2" />;
+        }
+
+        // Bullet Point with Prompt Chip
+        if (trimmed.startsWith("* ") || trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+          const rawBullet = trimmed.replace(/^[\*\-•]\s+/, "");
+          
+          // Check if it's a quoted prompt recommendation like *"Generate me an exam prep..."*
+          const quoteMatch = rawBullet.match(/^[\*_\"]*\"([^\"]+)\"[\*_\"]*$/) || rawBullet.match(/\"([^\"]+)\"/);
+          if (quoteMatch && onSelectPrompt) {
+            const promptText = quoteMatch[1];
+            return (
+              <div key={idx} className="my-1">
+                <button
+                  onClick={() => onSelectPrompt(promptText)}
+                  className="w-full text-left flex items-center gap-2 p-2 bg-[var(--canvas)] hover:bg-[var(--primary)] hover:text-white border border-[var(--hairline)] hover:border-[var(--primary)] rounded-xl text-xs font-semibold text-[var(--ink)] transition-all cursor-pointer shadow-xs group"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 group-hover:text-white flex-shrink-0" />
+                  <span className="flex-1">{promptText}</span>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 flex-shrink-0" />
+                </button>
+              </div>
+            );
+          }
+
+          return (
+            <div key={idx} className="flex items-start gap-2 text-xs leading-relaxed pl-1 py-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--primary)] mt-1.5 flex-shrink-0" />
+              <span className="flex-1">{renderInline(rawBullet)}</span>
+            </div>
+          );
+        }
+
+        // Standard text paragraph
+        return (
+          <p key={idx} className="leading-relaxed">
+            {renderInline(trimmed)}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
 interface AcademicAIAgentProps {
   isOpen: boolean;
   onClose: () => void;
@@ -213,15 +315,22 @@ export default function AcademicAIAgent({
                 {msg.role === "user" ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
 
-              <div className={`space-y-2 max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
+              <div className={`space-y-2 max-w-[88%] sm:max-w-[85%] ${msg.role === "user" ? "items-end" : "items-start"}`}>
                 <div
-                  className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed whitespace-pre-wrap ${
+                  className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed ${
                     msg.role === "user"
-                      ? "bg-[var(--primary)] text-white rounded-tr-none shadow-md"
-                      : "bg-[var(--surface-soft)] border border-[var(--hairline)] text-[var(--ink)] rounded-tl-none"
+                      ? "bg-[var(--primary)] text-white rounded-tr-none shadow-md whitespace-pre-wrap"
+                      : "bg-[var(--surface-soft)] border border-[var(--hairline)] text-[var(--ink)] rounded-tl-none space-y-2"
                   }`}
                 >
-                  {msg.content}
+                  {msg.role === "user" ? (
+                    msg.content
+                  ) : (
+                    <FormattedMessage 
+                      content={msg.content} 
+                      onSelectPrompt={(p) => sendMessage(p)} 
+                    />
+                  )}
                 </div>
 
                 {/* Interactive Action Badges */}

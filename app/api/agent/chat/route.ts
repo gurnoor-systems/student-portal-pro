@@ -339,10 +339,10 @@ ${courseListMarkdown}
     // 💬 Intent G: General Helpful Guidance & Greetings
     else {
       const statusDescriptor = studentCourses.length > 0
-        ? `I have live awareness of your **${studentCourses.length} enrolled courses** and **${studentTasks.filter((t: any) => t.status !== "completed").length} active deliverables**.`
-        : `I am connected to your academic program in **${context?.major || "Computer Science"}** at **${context?.university || "University of Delhi"}**.`;
+        ? `I have live awareness of your **${studentCourses.length} enrolled course${studentCourses.length > 1 ? "s" : ""}** (\`${studentCourses.map((c: any) => c.courseCode).join("`, `")}\`) and **${studentTasks.filter((t: any) => t.status !== "completed").length} active deliverables**.`
+        : `I am connected to your academic curriculum in **${context?.major || "Computer Science"}** at **${context?.university || "University of Delhi"}**.`;
 
-      reply = `Hello **${context?.userName || "Scholar"}**! 👋 I am your **Academic AI Copilot**.\n\n${statusDescriptor}\n\nHere are some things you can ask me:\n* *"Generate me an exam prep based on my past record"*\n* *"Add high-priority assignment for ${primaryCourse} due Friday"*\n* *"Schedule a 45-min Deep Focus block for today"*\n* *"What deadlines are coming up this week?"*`;
+      reply = `Hello **${context?.userName || "Scholar"}**! 👋 How can I help your studies today?\n\n${statusDescriptor}\n\nTap any command below to execute it instantly, or ask me any study question:\n* *"Generate me an exam prep based on my past record"*\n* *"Schedule a 45-min Deep Focus block for ${primaryCourse}"*\n* *"What deadlines are coming up this week?"*\n* *"Add high-priority assignment for ${primaryCourse} due Friday"*`;
     }
 
     return NextResponse.json({
