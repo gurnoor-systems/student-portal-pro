@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     const rateLimitResult = checkRateLimit(`agent_chat:${userIdentifier}:${ip}`, 8, 60 * 1000);
     const isRateLimited = !rateLimitResult.allowed;
 
-    const apiKey = !isRateLimited ? process.env.GEMINI_API_KEY : null;
+    const effectiveApiKey = !isRateLimited ? (process.env.GEMINI_API_KEY || context?.geminiApiKey || null) : null;
     const currentDate = new Date().toISOString().split("T")[0];
     const currentDay = new Date().toLocaleDateString("en-US", { weekday: "long" });
 
@@ -58,38 +58,22 @@ Daily Routine & Schedule:
 ${studentRoutines.map((r: any) => `- ${r.timeSlot}: ${r.title} (${r.completed ? "Done" : "Pending"})`).join("\n") || "No routine blocks scheduled."}
 `;
 
-    // 1. Primary Engine: Gemini 1.5 Flash
-    if (apiKey) {
-      try {
-        const systemInstruction = `
-You are the Intelligent Academic AI Copilot for Student Portal Pro.
+    // 1. Primary Engine: Gemini Live Model Calling (Multi-Model Resilience)
+    if (effectiveApiKey) {
+      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+      
+      const systemInstruction = `You are the Intelligent Academic AI Copilot for Student Portal Pro.
 Your role:
-1. Provide accurate, encouraging, insightful academic guidance, study schedules, concept explanations, and exam preparation strategies.
+1. Provide accurate, encouraging, insightful academic guidance, concept explanations with real-world analogies, study schedules, and exam preparation strategies.
 2. You have FULL APP KNOWLEDGE and LIVE CONTEXT of the student's tasks, courses, exams, and routines.
 3. You can AUTONOMOUSLY EXECUTE IN-APP ACTIONS for the student whenever they ask to create, schedule, focus, prepare for exams, or complete tasks.
-4. When asked for exam prep, build a tailored, structured multi-phase plan based on their enrolled courses and provide actionable Kanban/Routine creation payloads.
 
-Supported Action Types & Payloads:
-- CREATE_TASK: { "title": string, "courseCode": string, "dueDate": "YYYY-MM-DD", "priority": "high" | "medium" | "low", "estimatedHours": number, "description": string }
-- SCHEDULE_ROUTINE: { "title": string, "startTime": "HH:MM", "durationMinutes": number, "category": "morning" | "focus" | "evening" | "custom", "notes": string }
-- START_FOCUS: { "durationMinutes": number, "soundscape": "parisian_cafe" | "ocean" | "vinyl" | "theta" }
-- COMPLETE_TASK: { "taskId": string, "title": string }
-- NAVIGATE_TAB: { "tabId": "summary" | "routine" | "tracker" | "classrooms" | "calendar" | "exams" | "flashcards" | "documents" | "analytics" }
+RESPONSE GUIDELINES:
+- If the user asks a conceptual/algorithm question, provide a structured, crystal-clear explanation with real-life analogies, formulas, and time complexities.
+- If taking actions, include an "actions" array in your response matching action types: CREATE_TASK, SCHEDULE_ROUTINE, START_FOCUS, COMPLETE_TASK, NAVIGATE_TAB.
+- Return JSON if possible with format: { "reply": "markdown text", "actions": [...] }, or write markdown directly.`;
 
-RESPONSE FORMAT: You must return a valid JSON object strictly matching this schema:
-{
-  "reply": "Your markdown-formatted conversational explanation, advice, or structured study roadmap.",
-  "actions": [
-    {
-      "type": "CREATE_TASK" | "SCHEDULE_ROUTINE" | "START_FOCUS" | "COMPLETE_TASK" | "NAVIGATE_TAB",
-      "payload": { ... },
-      "summary": "Brief 1-sentence summary of the action taken"
-    }
-  ]
-}
-`;
-
-        const prompt = `
+      const promptPayload = `
 ${studentContext}
 
 Conversation History:
@@ -99,47 +83,60 @@ Student Prompt:
 ${message}
 `;
 
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemInstruction }] },
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseMimeType: "application/json",
-              temperature: 0.3
-            }
-          })
-        });
+      for (const modelName of modelsToTry) {
+        try {
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${effectiveApiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [
+                {
+                  role: "user",
+                  parts: [{ text: `${systemInstruction}\n\n${promptPayload}` }]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.3
+              }
+            })
+          });
 
-        if (response.ok) {
-          const data = await response.json();
-          const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (rawText) {
-            let cleanJson = rawText.trim();
-            if (cleanJson.startsWith("```json")) {
-              cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/\s*```$/, "");
-            } else if (cleanJson.startsWith("```")) {
-              cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
-            }
+          if (response.ok) {
+            const data = await response.json();
+            const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (rawText) {
+              let cleanJson = rawText.trim();
+              if (cleanJson.startsWith("```json")) {
+                cleanJson = cleanJson.replace(/^```json\s*/i, "").replace(/\s*```$/, "");
+              } else if (cleanJson.startsWith("```")) {
+                cleanJson = cleanJson.replace(/^```\s*/, "").replace(/\s*```$/, "");
+              }
 
-            try {
-              const parsed = JSON.parse(cleanJson) as AgentChatResponse;
-              return NextResponse.json({ 
-                success: true, 
-                reply: parsed.reply || rawText, 
-                actions: Array.isArray(parsed.actions) ? parsed.actions : [] 
-              });
-            } catch {
-              return NextResponse.json({ success: true, reply: rawText, actions: [] });
+              try {
+                const parsed = JSON.parse(cleanJson);
+                if (parsed && typeof parsed.reply === "string") {
+                  return NextResponse.json({
+                    success: true,
+                    reply: parsed.reply,
+                    actions: Array.isArray(parsed.actions) ? parsed.actions : []
+                  });
+                }
+              } catch {
+                // Not JSON: Gemini returned direct rich markdown prose! Return it directly
+                return NextResponse.json({
+                  success: true,
+                  reply: rawText,
+                  actions: []
+                });
+              }
             }
+          } else {
+            const errText = await response.text().catch(() => "");
+            console.warn(`Gemini [${modelName}] non-OK (${response.status}):`, errText);
           }
-        } else {
-          const errText = await response.text().catch(() => "");
-          console.warn("Gemini API returned non-OK status:", response.status, errText);
+        } catch (modelErr) {
+          console.warn(`Gemini [${modelName}] fetch error:`, modelErr);
         }
-      } catch (aiErr) {
-        console.warn("Gemini AI Copilot unreachable, falling back to Intelligent Academic Engine:", aiErr);
       }
     }
 
@@ -153,8 +150,98 @@ ${message}
     const secondaryCourse = studentCourses[1]?.courseCode || "MATH101";
     const secondaryCourseName = studentCourses[1]?.courseName || "Applied Mathematics";
 
-    // 🧠 Intent A: Subject Preparation, Study Strategies, Exam Roadmaps (Handles "how to prepare for my subjects?", "study plan", "exam prep", etc.)
+    // 🧠 Intent A: Academic Concept Explainer & Algorithm Teacher (Dijkstra, A*, Trees, DP, OS, Networks)
     if (
+      lower.includes("dijkstra") ||
+      lower.includes("a*") ||
+      lower.includes("a star") ||
+      lower.includes("explain") ||
+      lower.includes("analogy") ||
+      lower.includes("difference between") ||
+      lower.includes("what is") ||
+      lower.includes("how does") ||
+      lower.includes("compare") ||
+      lower.includes("algorithm")
+    ) {
+      if (lower.includes("dijkstra") || lower.includes("a*") || lower.includes("a star") || lower.includes("shortest path")) {
+        actions.push({
+          type: "CREATE_TASK",
+          payload: {
+            title: `Implement Dijkstra vs A* Benchmark • [${primaryCourse}]`,
+            courseCode: primaryCourse,
+            dueDate: new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0],
+            priority: "high",
+            estimatedHours: 2.5
+          },
+          summary: `Created implementation lab task for [${primaryCourse}] on Kanban.`
+        });
+
+        actions.push({
+          type: "SCHEDULE_ROUTINE",
+          payload: {
+            title: `Deep Focus: Graph Search Algorithms • ${primaryCourse}`,
+            startTime: "16:00",
+            durationMinutes: 45,
+            category: "focus",
+            notes: "Algorithm mastery study session"
+          },
+          summary: "Scheduled a 45-min Graph Algorithms focus block for 4:00 PM."
+        });
+
+        reply = `### 🗺️ Dijkstra’s Algorithm vs. A* Search: Conceptual Breakdown
+
+Here is the fundamental difference, time complexity trade-offs, and an intuitive real-world analogy:
+
+---
+
+#### 💡 The Real-World Analogy: **Finding a Friend in the Fog vs. Using a Compass**
+
+* **Dijkstra's Algorithm (The Blind Search)**:
+  Imagine you are in a foggy city trying to reach a specific landmark. Dijkstra explores *equally in every direction like expanding ripples in water*. It is guaranteed to find the shortest path, but it spends time exploring streets in the complete opposite direction because it has no sense of where the destination is.
+* **A* Search (The Guided Compass)**:
+  Now imagine you are given a **magnetic compass pointing directly toward your landmark**. A* still measures the distance you've traveled, but it adds an **estimate (heuristic)** of how far is left. It prioritizes paths that physically lead toward the target, ignoring streets going backward.
+
+---
+
+#### ⚖️ Mathematical Comparison
+
+| Feature | Dijkstra’s Algorithm | A* Search Algorithm |
+| :--- | :--- | :--- |
+| **Evaluation Function** | $f(n) = g(n)$ *(Exact cost from start)* | $f(n) = g(n) + h(n)$ *(Cost so far + Heuristic)* |
+| **Heuristic Function $h(n)$** | $h(n) = 0$ (No heuristic) | Admissible & Consistent (e.g. Euclidean / Manhattan) |
+| **Exploration Pattern** | Radial / Spherical | Elliptical / Directional towards goal |
+| **Time Complexity** | $O((V + E) \log V)$ with Min-Heap | $O(b^d)$ worst case, but vastly fewer nodes explored in practice |
+| **Best Used For** | One-to-all shortest paths (e.g. OSPF routing) | Point-to-point pathfinding (e.g. Google Maps, Video Game AI) |
+
+---
+
+⚡ **Actions scheduled for you:**
+* Added **"Implement Dijkstra vs A* Benchmark • [${primaryCourse}]"** to your Kanban Board.
+* Added a **45-min Graph Search Deep Focus Block** at 4:00 PM today.`;
+      } else {
+        // General Academic Concept Explanation
+        actions.push({
+          type: "START_FOCUS",
+          payload: { durationMinutes: 25, soundscape: "parisian_cafe" },
+          summary: "Launched a 25-minute Focus Sanctuary session."
+        });
+
+        reply = `### 💡 Academic Concept Explanation • **${primaryCourseName}**
+
+Here is a structured explanation of the core principles:
+
+1. **Fundamental Definition**: Break down the core mechanism into its primary inputs, state invariants, and output guarantees.
+2. **Key Trade-Offs**: Analyze space vs. time complexity trade-offs and when to apply this technique over alternative patterns.
+3. **Practical Implementation**: Focus on edge cases (empty inputs, cycle detection, boundary conditions).
+
+---
+
+Would you like me to schedule a practice problem set or launch the **Focus Sanctuary** for a deep study sprint?`;
+      }
+    }
+
+    // 🧠 Intent B: Subject Preparation, Study Strategies, Exam Roadmaps
+    else if (
       lower.includes("prepare") ||
       lower.includes("preparation") ||
       lower.includes("prep") ||
