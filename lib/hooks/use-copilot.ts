@@ -43,11 +43,15 @@ export function useCopilot({ user, userData, onExecuteAction }: UseCopilotOption
         const studentName = user?.fullName?.split(" ")[0] || "Scholar";
         const courseCount = userData.courses.length;
         const activeTasks = userData.tasks.filter(t => t.status !== "completed").length;
+        const statusLine = courseCount > 0
+          ? `I have live awareness of your **${courseCount} courses**, **${activeTasks} active assignments**, and daily routine.`
+          : `I am connected to your academic profile in **${user?.major || "Computer Science"}** at **${user?.university || "University of Delhi"}**.`;
+
         return [
           {
             id: "msg_init",
             role: "assistant",
-            content: `Hello **${studentName}**! 👋 I am your **Academic AI Copilot** at **${user?.university || "University of Delhi"}**.\n\nI have live awareness of your **${courseCount} courses**, **${activeTasks} active assignments**, and daily routine.\n\nHow can I help your studies today?`,
+            content: `Hello **${studentName}**! 👋 I am your **Academic AI Copilot**.\n\n${statusLine}\n\nHow can I help your studies today?`,
             timestamp: prev[0]?.timestamp || new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
           }
         ];

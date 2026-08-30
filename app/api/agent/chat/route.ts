@@ -314,9 +314,13 @@ ${courseListMarkdown}
       reply = `Opening your **Flashcards & Active Recall Hub**! You can test your recall across your ${studentCourses.length} courses with spaced repetition and instant AI question generation. 🧠`;
     }
 
-    // 💬 Intent G: General Helpful Guidance
+    // 💬 Intent G: General Helpful Guidance & Greetings
     else {
-      reply = `Hello **${context?.userName || "Scholar"}**! I am your **Academic AI Copilot** at **${context?.university || "University of Delhi"}**.\n\nI have live awareness of your **${studentCourses.length} enrolled courses** and **${studentTasks.filter((t: any) => t.status !== "completed").length} active deliverables**.\n\nHere are some things you can ask me:\n* *"Generate me an exam prep based on my past record"*\n* *"Add high-priority assignment for ${primaryCourse} due Friday"*\n* *"Schedule a 45-min Deep Focus block for today"*\n* *"What deadlines are coming up this week?"*`;
+      const statusDescriptor = studentCourses.length > 0
+        ? `I have live awareness of your **${studentCourses.length} enrolled courses** and **${studentTasks.filter((t: any) => t.status !== "completed").length} active deliverables**.`
+        : `I am connected to your academic program in **${context?.major || "Computer Science"}** at **${context?.university || "University of Delhi"}**.`;
+
+      reply = `Hello **${context?.userName || "Scholar"}**! 👋 I am your **Academic AI Copilot**.\n\n${statusDescriptor}\n\nHere are some things you can ask me:\n* *"Generate me an exam prep based on my past record"*\n* *"Add high-priority assignment for ${primaryCourse} due Friday"*\n* *"Schedule a 45-min Deep Focus block for today"*\n* *"What deadlines are coming up this week?"*`;
     }
 
     return NextResponse.json({
