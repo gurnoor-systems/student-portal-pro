@@ -60,7 +60,7 @@ export function useCopilot({ user, userData, onExecuteAction }: UseCopilotOption
     });
   }, [user, userData.courses.length, userData.tasks]);
 
-  const sendMessage = useCallback(async (textToSend?: string) => {
+  const sendMessage = useCallback(async (textToSend?: string, actionTab?: "exam_prep" | "due_this_week" | "focus_block" | "sanctuary") => {
     const query = (textToSend || input).trim();
     if (!query || isLoading) return;
 
@@ -89,12 +89,15 @@ export function useCopilot({ user, userData, onExecuteAction }: UseCopilotOption
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: query,
+          actionTab,
           history: messages.slice(-6).map(m => ({ role: m.role, content: m.content })),
           context: {
+            userId: user?.id || "guest",
             userName: user?.fullName || "Student",
-            university: user?.university,
-            major: user?.major || user?.degree,
-            semester: user?.semester,
+            university: user?.university || "University of Delhi",
+            degree: user?.degree || "Bachelor of Technology (B.Tech)",
+            major: user?.major || "Computer Science",
+            semester: user?.semester || "Semester 1",
             courses: userData.courses || [],
             tasks: userData.tasks || [],
             exams: userData.exams || [],

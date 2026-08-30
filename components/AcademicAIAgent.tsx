@@ -259,12 +259,12 @@ export default function AcademicAIAgent({
     }
   }, [isOpen, initialPrompt, sendMessage]);
 
-  // Quick Prompt Suggestions
-  const quickPrompts = [
-    { label: "🎯 Exam Prep Roadmap", query: "Generate me an exam prep based on my past record and enrolled courses" },
-    { label: "📋 What's due this week?", query: "What assignments and deadlines are due in the next 7 days?" },
-    { label: "⚡ Schedule 45m Focus Block", query: "Schedule a 45-minute Deep Focus study block for today" },
-    { label: "🎧 Launch Focus Sanctuary", query: "Start a 50-minute Focus session with ambient audio" }
+  // 4 Core Dedicated Action Tabs
+  const actionTabs = [
+    { label: "🎯 Exam Prep", query: "Generate me an exam prep based on my past record and enrolled courses", actionTab: "exam_prep" as const },
+    { label: "📋 What's Due?", query: "What assignments and deadlines are due in the next 7 days?", actionTab: "due_this_week" as const },
+    { label: "⚡ Focus Block", query: "Schedule a 45-minute Deep Focus study block for today", actionTab: "focus_block" as const },
+    { label: "🎧 Sanctuary", query: "Start a 25-minute Pomodoro Focus Sanctuary session", actionTab: "sanctuary" as const }
   ];
 
   if (!isOpen) return null;
@@ -286,7 +286,7 @@ export default function AcademicAIAgent({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
                 </span>
               </div>
-              <p className="text-[11px] text-[var(--muted)]">Aware of your courses, tasks & routine</p>
+              <p className="text-[11px] text-[var(--muted)]">Aware of your degree, courses & routine</p>
             </div>
           </div>
 
@@ -296,6 +296,19 @@ export default function AcademicAIAgent({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* 4 Dedicated Quick Action Tabs */}
+        <div className="px-3 py-2 border-b border-[var(--hairline)] bg-[var(--surface)] flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {actionTabs.map((tab, idx) => (
+            <button
+              key={idx}
+              onClick={() => sendMessage(tab.query, tab.actionTab)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--surface-soft)] hover:bg-[var(--primary)] hover:text-white border border-[var(--hairline)] hover:border-[var(--primary)] rounded-xl text-xs font-semibold text-[var(--ink)] whitespace-nowrap transition-all cursor-pointer shadow-xs group flex-shrink-0"
+            >
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* 2. Messages Stream */}
@@ -374,14 +387,14 @@ export default function AcademicAIAgent({
 
         {/* 3. Quick Suggestion Chips */}
         <div className="px-4 py-2 border-t border-[var(--hairline)] bg-[var(--surface-soft)]/50 overflow-x-auto flex items-center gap-2 scrollbar-none">
-          {quickPrompts.map((qp, idx) => (
+          {actionTabs.map((tab, idx) => (
             <button
               key={idx}
-              onClick={() => sendMessage(qp.query)}
+              onClick={() => sendMessage(tab.query, tab.actionTab)}
               disabled={isLoading}
               className="px-2.5 py-1.5 bg-[var(--canvas)] hover:bg-[var(--surface-strong)] border border-[var(--hairline)] hover:border-[var(--primary)] text-[11px] font-bold text-[var(--ink)] rounded-xl whitespace-nowrap transition-all flex-shrink-0 cursor-pointer"
             >
-              {qp.label}
+              {tab.label}
             </button>
           ))}
         </div>

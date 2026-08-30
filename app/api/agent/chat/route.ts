@@ -15,7 +15,7 @@ export interface AgentChatResponse {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { message, context, history } = body;
+    const { message, actionTab, context, history } = body;
 
     if (!message || typeof message !== "string") {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
@@ -24,8 +24,8 @@ export async function POST(req: NextRequest) {
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || "127.0.0.1";
     const userIdentifier = context?.userName ? `${context.userName.replace(/\s+/g, "_")}` : "guest";
     
-    // Fair-Use Rate Limiter: Max 8 queries per minute per user/IP to protect quotas
-    const rateLimitResult = checkRateLimit(`agent_chat:${userIdentifier}:${ip}`, 8, 60 * 1000);
+    // Fair-Use Rate Limiter: Max 10 queries per minute per user/IP
+    const rateLimitResult = checkRateLimit(`agent_chat:${userIdentifier}:${ip}`, 10, 60 * 1000);
     const isRateLimited = !rateLimitResult.allowed;
 
     const effectiveApiKey = !isRateLimited ? (process.env.GEMINI_API_KEY || context?.geminiApiKey || null) : null;
@@ -37,41 +37,149 @@ export async function POST(req: NextRequest) {
     const studentExams = Array.isArray(context?.exams) ? context.exams : [];
     const studentRoutines = Array.isArray(context?.routines) ? context.routines : [];
 
-    // Format student's live context for system prompt
-    const studentContext = `
+    const primaryCourse = studentCourses[0]?.courseCode || "DS";
+    const primaryCourseName = studentCourses[0]?.courseName || "Data Structures";
+    const userDegree = context?.degree || "Bachelor of Technology (B.Tech)";
+    const userMajor = context?.major || "Computer Science";
+    const userSemester = context?.semester || "Semester 1";
+    const userUniversity = context?.university || "University of Delhi";
+    const userId = context?.userId || "usr_student";
+
+    // ⚡ Direct Platform Action Tab Routing (Instant 1-Tap Workflow Automations)
+    if (actionTab) {
+      const actions: AgentAction[] = [];
+      let reply = "";
+
+      if (actionTab === "exam_prep") {
+        const targetDue = new Date(Date.now() + 3 * 86400000).toISOString().split("T")[0];
+        actions.push({
+          type: "CREATE_TASK",
+          payload: {
+            title: `Core Study Milestone • ${primaryCourseName} [${primaryCourse}]`,
+            courseCode: primaryCourse,
+            dueDate: targetDue,
+            priority: "high",
+            estimatedHours: 3,
+            description: `Curated for ${userDegree} (${userSemester}) by AI Copilot.`
+          },
+          summary: `Created high-priority study milestone for [${primaryCourse}].`
+        });
+
+        actions.push({
+          type: "SCHEDULE_ROUTINE",
+          payload: {
+            title: `Deep Focus Revision • ${primaryCourse}`,
+            startTime: "15:00",
+            durationMinutes: 60,
+            category: "focus",
+            notes: "Structured syllabus mastery"
+          },
+          summary: "Added 60-min Deep Focus block to Daily Routine for 3:00 PM."
+        });
+
+        const courseBreakdown = studentCourses.length > 0
+          ? studentCourses.map((c: any) => `* **${c.courseName}** (\`${c.courseCode}\`):\n  - **High-Yield Priority**: Core theorems, algorithm complexity proofs, and implementation problems.\n  - **Target Velocity**: 2–3 active problem sets per week.`).join("\n")
+          : `* **${primaryCourseName}** (\`${primaryCourse}\`):\n  - **High-Yield Priority**: Key data structures, asymptotic notation, and search benchmarks.`;
+
+        reply = `### 🎯 Academic Exam Preparation Strategy • **${userSemester}**
+
+Curated for **${context?.userName || "Scholar"}** (${userDegree} in ${userMajor} at ${userUniversity}):
+
+---
+
+#### 📚 Phase 1: High-Yield Syllabus Mapping & Theory
+${courseBreakdown}
+
+#### 🧠 Phase 2: Active Recall & Timed Sprint Sets
+* Complete 25-minute Pomodoro sprints solving past exam questions without notes.
+* Test definitions and time/space complexities using flashcard active recall.
+
+#### 🏁 Phase 3: Timed Mock Simulation
+* Complete a full-length timed mock simulation to test velocity and accuracy.
+
+---
+
+⚡ **Actions scheduled for you:**
+* Added **"Core Study Milestone • ${primaryCourseName} [${primaryCourse}]"** (High Priority) to your Kanban Board.
+* Scheduled a **60-min Deep Focus Revision Block** at 3:00 PM in your Daily Routine timeline.`;
+      }
+      else if (actionTab === "due_this_week") {
+        const activeTasks = studentTasks.filter((t: any) => t.status !== "completed");
+        if (activeTasks.length > 0) {
+          reply = `### 📋 Active Deliverables & Deadlines (${activeTasks.length} Pending)\n\n` +
+            activeTasks.map((t: any) => `* **${t.title}** (\`${t.courseCode}\`) — Due **${t.dueDate}** [Priority: **${t.priority.toUpperCase()}**]`).join("\n") +
+            `\n\nWould you like me to schedule dedicated focus blocks or launch the Focus Room for any of these?`;
+        } else {
+          reply = `### 📋 Active Deliverables & Deadlines\n\nYou currently have **0 pending assignments**! Your academic queue is completely clear. 🎉`;
+        }
+      }
+      else if (actionTab === "focus_block") {
+        actions.push({
+          type: "SCHEDULE_ROUTINE",
+          payload: {
+            title: `Deep Focus Study Session • ${primaryCourse}`,
+            startTime: "16:00",
+            durationMinutes: 45,
+            category: "focus",
+            notes: "Scheduled via AI Action Tab"
+          },
+          summary: `Added a 45-minute Deep Focus block to Daily Routine for 4:00 PM.`
+        });
+
+        reply = `### ⚡ Focus Study Block Scheduled!\n\nI have added a **45-minute Deep Focus study block** for **${primaryCourseName} [${primaryCourse}]** at **4:00 PM** to your Daily Routine timeline.\n\n* **Recommended soundscape**: Parisian Cafe or Ocean Waves for sustained concentration.`;
+      }
+      else if (actionTab === "sanctuary") {
+        actions.push({
+          type: "START_FOCUS",
+          payload: { durationMinutes: 25, soundscape: "parisian_cafe" },
+          summary: "Launched a 25-minute Focus Sanctuary Pomodoro session."
+        });
+
+        reply = `### 🎧 Launching Focus Sanctuary\n\nOpening your distraction-free study environment with **Parisian Cafe** acoustic audio and a 25-minute Pomodoro timer. Let's make progress on **${primaryCourse}**! 🚀`;
+      }
+
+      return NextResponse.json({ success: true, reply, actions });
+    }
+
+    // 1. Primary Engine: Gemini Live Model Calling with Rich Student Persona
+    if (effectiveApiKey) {
+      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
+      
+      const studentContext = `
 Student Information:
 - Current Date & Day: ${currentDay}, ${currentDate}
+- User ID: ${userId}
 - Name: ${context?.userName || "Student"}
-- University / Program: ${context?.university || "University of Delhi"} (${context?.major || "Undergraduate"})
-- Active Semester: ${context?.semester || "Semester 1"}
+- University: ${userUniversity}
+- Degree Program: ${userDegree}
+- Major / Department: ${userMajor}
+- Active Semester: ${userSemester}
 
 Enrolled Courses (${studentCourses.length}):
 ${studentCourses.map((c: any) => `- [${c.courseCode}] ${c.courseName} (Instructor: ${c.instructor || "Faculty"})`).join("\n") || "No courses registered yet."}
 
-Active Assignments & Deadlines (${studentTasks.length}):
+Active Deliverables (${studentTasks.length}):
 ${studentTasks.map((t: any) => `- Task ID: "${t.id}" | ${t.title} [${t.courseCode}] | Due: ${t.dueDate} | Priority: ${t.priority} | Status: ${t.status}`).join("\n") || "No active tasks."}
 
 Upcoming Exams (${studentExams.length}):
 ${studentExams.map((e: any) => `- [${e.courseCode}] ${e.title} on ${e.examDate} (Weight: ${e.weightPercent || 20}%)`).join("\n") || "No exams scheduled."}
-
-Daily Routine & Schedule:
-${studentRoutines.map((r: any) => `- ${r.timeSlot}: ${r.title} (${r.completed ? "Done" : "Pending"})`).join("\n") || "No routine blocks scheduled."}
 `;
 
-    // 1. Primary Engine: Gemini Live Model Calling (Multi-Model Resilience)
-    if (effectiveApiKey) {
-      const modelsToTry = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"];
-      
       const systemInstruction = `You are the Intelligent Academic AI Copilot for Student Portal Pro.
-Your role:
-1. Provide accurate, encouraging, insightful academic guidance, concept explanations with real-world analogies, study schedules, and exam preparation strategies.
-2. You have FULL APP KNOWLEDGE and LIVE CONTEXT of the student's tasks, courses, exams, and routines.
-3. You can AUTONOMOUSLY EXECUTE IN-APP ACTIONS for the student whenever they ask to create, schedule, focus, prepare for exams, or complete tasks.
+You are interacting with a university student enrolled in ${userDegree} (${userMajor}) at ${userUniversity}, currently in ${userSemester}.
 
-RESPONSE GUIDELINES:
-- If the user asks a conceptual/algorithm question, provide a structured, crystal-clear explanation with real-life analogies, formulas, and time complexities.
-- If taking actions, include an "actions" array in your response matching action types: CREATE_TASK, SCHEDULE_ROUTINE, START_FOCUS, COMPLETE_TASK, NAVIGATE_TAB.
-- Return JSON if possible with format: { "reply": "markdown text", "actions": [...] }, or write markdown directly.`;
+CORE RESPONSIBILITIES:
+1. Tailor all answers to the student's specific academic context (${userDegree}, ${userSemester}, courses: ${studentCourses.map((c: any) => c.courseCode).join(", ") || "general"}).
+2. If the student asks conceptual, technical, mathematical, or algorithmic questions, explain them with clarity, depth, real-world analogies, formulas, and academic rigor.
+3. If the student asks general, casual, or lifestyle questions (e.g. weather, productivity, motivation, daily planning), answer helpfully, naturally, and warmly.
+4. When the student asks to create a task, schedule a routine, or start focus, execute the action by outputting structured JSON with an "actions" array.
+
+ACTIONS SCHEMA:
+- CREATE_TASK: { "title": string, "courseCode": string, "dueDate": "YYYY-MM-DD", "priority": "high"|"medium"|"low", "estimatedHours": number }
+- SCHEDULE_ROUTINE: { "title": string, "startTime": "HH:MM", "durationMinutes": number, "category": "focus", "notes": string }
+- START_FOCUS: { "durationMinutes": number, "soundscape": "parisian_cafe"|"ocean"|"vinyl"|"theta" }
+
+FORMAT: Return JSON { "reply": "markdown string", "actions": [...] } or write rich markdown directly.`;
 
       const promptPayload = `
 ${studentContext}
@@ -122,7 +230,6 @@ ${message}
                   });
                 }
               } catch {
-                // Not JSON: Gemini returned direct rich markdown prose! Return it directly
                 return NextResponse.json({
                   success: true,
                   reply: rawText,
@@ -135,7 +242,7 @@ ${message}
             console.warn(`Gemini [${modelName}] non-OK (${response.status}):`, errText);
           }
         } catch (modelErr) {
-          console.warn(`Gemini [${modelName}] fetch error:`, modelErr);
+          console.warn(`Gemini [${modelName}] error:`, modelErr);
         }
       }
     }
@@ -145,23 +252,17 @@ ${message}
     const actions: AgentAction[] = [];
     let reply = "";
 
-    const primaryCourse = studentCourses[0]?.courseCode || "DS";
-    const primaryCourseName = studentCourses[0]?.courseName || "Data Structures";
     const secondaryCourse = studentCourses[1]?.courseCode || "MATH101";
     const secondaryCourseName = studentCourses[1]?.courseName || "Applied Mathematics";
 
-    // 🧠 Intent A: Academic Concept Explainer & Algorithm Teacher (Dijkstra, A*, Trees, DP, OS, Networks)
+    // 🧠 Intent A: Academic Algorithms & Conceptual Proofs (Dijkstra, A*, Trees, Sorting, Graphs)
     if (
       lower.includes("dijkstra") ||
       lower.includes("a*") ||
       lower.includes("a star") ||
-      lower.includes("explain") ||
-      lower.includes("analogy") ||
-      lower.includes("difference between") ||
-      lower.includes("what is") ||
-      lower.includes("how does") ||
-      lower.includes("compare") ||
-      lower.includes("algorithm")
+      lower.includes("shortest path") ||
+      ((lower.includes("explain") || lower.includes("difference") || lower.includes("compare") || lower.includes("analogy")) && 
+       (lower.includes("algorithm") || lower.includes("tree") || lower.includes("graph") || lower.includes("complexity") || lower.includes("search") || lower.includes("structure") || lower.includes("heap") || lower.includes("array") || lower.includes("stack") || lower.includes("queue")))
     ) {
       if (lower.includes("dijkstra") || lower.includes("a*") || lower.includes("a star") || lower.includes("shortest path")) {
         actions.push({
@@ -238,6 +339,11 @@ Here is a structured explanation of the core principles:
 
 Would you like me to schedule a practice problem set or launch the **Focus Sanctuary** for a deep study sprint?`;
       }
+    }
+
+    // 🌤️ Casual / General Conversation Fallback
+    else if (lower.includes("weather") || lower.includes("how are you") || lower.includes("who are you") || lower.includes("what can you do")) {
+      reply = `Hello **${context?.userName || "Scholar"}**! 👋 I am your **Academic AI Copilot** for ${userDegree} at ${userUniversity}.\n\nI am specialized in your academic workflow, coursework in **${primaryCourseName} [${primaryCourse}]**, exam preparation, and daily study scheduling.\n\nTap any action tab above or ask me a study question to get started!`;
     }
 
     // 🧠 Intent B: Subject Preparation, Study Strategies, Exam Roadmaps
